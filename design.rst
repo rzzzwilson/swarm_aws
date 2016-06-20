@@ -18,6 +18,9 @@ allows the harness to find:
 * the command name (<cmd>)
 * ???
 
+The harness will look in the **plugins** directory at startup looking for
+plugins and populating the plugin environment.
+
 Harness
 -------
 
