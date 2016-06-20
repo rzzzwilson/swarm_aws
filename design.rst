@@ -26,14 +26,15 @@ Each plugin will also be a standalone executable.
 Plugin Introspection
 ____________________
 
-Each plugin will have a function: **swarm_plugin()**.
+Each plugin will have a top-level dictionary **Plugin**.
 
-Calling this function gets information for that plugin.  The returned dictionary
+Each dictionary contains information for the plugin.  The dictionary
 will contain:
 
 * plugin code name (**name**)
 * plugin entry function (**entry**)
 * plugin version string (**version**)
+* plugin command string (**command**)
 * ???
 
 
