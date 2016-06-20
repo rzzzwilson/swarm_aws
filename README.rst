@@ -5,3 +5,10 @@ swarm_aws
 
 The basis for **swarm_aws** is boto3 and python 2.
 
+Directories
+-----------
+
+**swarm** - the basic core code
+
+**plugins** - the command plugins for **swarm_aws**
+
