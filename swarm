@@ -1,0 +1,121 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+This is the swarm_aws harness.  It runs a plugin and passes parameters to it.
+
+Example: swarm_aws <options> cmd <cmd_options> <command>
+
+where <options>     are the options for swarm_aws,
+      <cmd_options> are the 'cmd' options and
+      <command>     are the 'cmd' parameters.
+
+An example:
+
+swarm_aws cmd "ls -l /tmp"
+
+This runs the command "ls -l /tmp" on all running instances.
+"""
+
+import os
+import sys
+import getopt
+import traceback
+
+import swarm
+from swarm import log
+
+log = log.Log('sw_cmd.log', log.Log.DEBUG)
+
+
+# program version
+_Name = 'swarm_aws'
+_MajorRelease = 0
+_MinorRelease = 1
+__version__ = '%d %d' % (_MajorRelease, _MinorRelease)
+
+
+# default values
+DefaultAuthDir = os.path.expanduser('~/.ssh')
+DefaultPluginDir = 'plugins'
+
+
+def swarm():
+    """Perform a swarm_aws command."""
+
+    # parse CLI args
+    args = sys.argv[1:]
+
+    # get appropriate plugin
+
+    # pass args to plugin code
+
+def error(msg):
+    """Print error message and quit."""
+
+    print(msg)
+    sys.exit(1)
+
+
+def warn(msg):
+    """Print error message and continue."""
+
+    log.warn(msg)
+    print(msg)
+
+
+def usage(msg=None):
+    """Print help for the befuddled user."""
+
+    if msg:
+        print(msg+'\n')
+    print(__doc__)        # module docstring used
+
+
+# our own handler for uncaught exceptions
+def excepthook(type, value, tb):
+    msg = '\n' + '=' * 80
+    msg += '\nUncaught exception:\n'
+    msg += ''.join(traceback.format_exception(type, value, tb))
+    msg += '=' * 80 + '\n'
+
+    print msg
+    log.critical(msg)
+    sys.exit(1)
+
+# plug our handler into the python system
+sys.excepthook = excepthook
+
+# parse harness options
+argv = sys.argv[1:]
+
+try:
+    opts, args = getopt.getopt(argv, 'hVv',
+                                     ['help', 'version', 'verbose'])
+except getopt.error, msg:
+    usage()
+    return 1
+
+cmd_args = []
+
+for (opt, param) in opts:
+    if opt in ['-h', '--help']:
+        usage()
+    elif opt in ['-v', '--verbose']:
+        print('%s v%s' % (_Name, __version__))
+    elif opt in ['-v', '--verbose']:
+        log.bump_level()
+    else:
+        cmd_args.append((opt, param))
+
+# parse the harness options, anything unrecognized signals the end of the harness
+# options.  everything else is passed to the harness to be handles by the plugin.
+for (opt, param) in opts:
+    if opt in ['-h', '--help']:
+        auth_dir = param
+        if not os.path.isdir(auth_dir):
+            error("Authentication directory '%s' doesn't exist" % auth_dir)
+    elif opt in ['-d', '--debug']:
+
+# call the handler code
+sys.exit(swarm())
