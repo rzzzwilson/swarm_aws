@@ -2,49 +2,47 @@
 # -*- coding: utf-8 -*-
 
 """
-This program is a generalization of lots of little scripts that get written
+This plugin is a generalization of lots of little scripts that get written
 to do something on every worker node, like check the contents of a certain
 file, check the hostname, etc.
 
-Usage: sw_cmd <options> <command>
+Usage: swarm_aws cmd <options> <command>
 
 where <options> is zero or more of:
     -a   --auth     directory holding authentication keys (default is ~/.ssh)
     -h   --help     print this help and stop
     -i   --ip       show source as IP address, not VM name
-    -p   --prefix   name prefix used to select nodes (default is all servers)
+    -p   --prefix   name prefix used to select nodes (default is all instances)
     -V   --version  print version information and stop
     -v   --verbose  be verbose (cumulative)
 and <command> is the command string to execute on the node.
 
 An example:
-sw_cmd "cat /var/spool/torque/mom_priv/config|grep \\"^\\\\\$usecp\\" | grep users"
+swarm_aws cmd "cat /var/spool/torque/mom_priv/config|grep \\"^\\\\\$usecp\\" | grep users"
 """
 
 import os
-import swarm
-from swarm import log
+import ../swarm
+from ../swarm import log
 log = log.Log('sw_cmd.log', log.Log.DEBUG)
 
 
 # program version
-__program__ = 'sw_cmd'
-_MajorRelease = 0
-_MinorRelease = 1
-__version__ = '%d.%d' % (_MajorRelease, _MinorRelease)
+MajorRelease = 0
+MinorRelease = 1
 
 
 # default values
 DefaultAuthDir = os.path.expanduser('~/.ssh')
 
 
-def sw_cmd(query, auth_dir, name_prefix, show_ip):
-    """Perform the query remotely.
+def plugin(cmd, auth_dir, name_prefix, show_ip):
+    """Perform the command remotely.
 
-    query        the command to execute remotely
+    cmd        the command to execute remotely
     auth_dir     path to directory of authentication keys
     name_prefix  prefix of node name
-    show_ip      if True show server IP, else show openstack name
+    show_ip      if True show instance IP, else show EC2 name
     """
 
     def ip_key(key):
@@ -68,33 +66,33 @@ def sw_cmd(query, auth_dir, name_prefix, show_ip):
 
         return key[1]
 
-    # get all servers
-    swm = swarm.Swarm(auth_dir)
-    all_servers = swm.servers()
+    # get all instances
+    swm = swarm.Swarm()
+    all_instances = swm.instances()
 
-    # get a filtered list of servers depending on name_prefix
+    # get a filtered list of instances depending on name_prefix
     prefixes = []
-    filtered_servers = all_servers
+    filtered_instances = all_instances
     if name_prefix is not None:
         prefixes = name_prefix.split(',')
-        filtered_servers = []
+        filtered_instances = []
         for prefix in prefixes:
             filter = swm.filter_name_prefix(prefix)
-            s = swm.filter(all_servers, filter)
-            filtered_servers = swm.union(filtered_servers, s)
+            s = swm.filter(all_instances, filter)
+            filtered_instances = swm.union(filtered_instances, s)
 
-    print("# doing '%s' on %d servers named '%s*'"
-          % (query, len(filtered_servers), '*|'.join(prefixes)))
+    print("# doing '%s' on %d instances named '%s*'"
+          % (cmd, len(filtered_instances), '*|'.join(prefixes)))
 
-    # kick off the parallel query
-    answer = swm.cmd(filtered_servers, query, swm.info_ip())
+    # kick off the parallel cmd
+    answer = swm.cmd(filtered_instances, cmd, swm.info_ip())
 
     # handle the case where user wants IP displayed
     if show_ip:
         answer = sorted(answer, key=ip_key)
     else:
         # get openstack names, make new answer
-        ip_names = swm.info(filtered_servers, swm.info_ip(), swm.info_name())
+        ip_names = swm.info(filtered_instances, swm.info_ip(), swm.info_name())
         new_answer = []
         for (os_ip, os_name) in ip_names:
             name = os_ip		# if no match
@@ -118,7 +116,7 @@ def sw_cmd(query, auth_dir, name_prefix, show_ip):
 Plugin = {
         'name': 'sw_cmd',
         'entry': 'plugin',
-        'version': '%d.%d' % (_MajorRelease, _MinorRelease),
+        'version': '%d.%d' % (MajorRelease, MinorRelease),
         'command': 'cmd',
        }
 
@@ -192,10 +190,10 @@ if __name__ == '__main__':
         if len(args) < 1:
             usage()
             return 1
-        query = ' '.join(args)
+        cmd = ' '.join(args)
 
-        # do the query
-        plugin(query, auth_dir, name_prefix, show_ip)
+        # do the command
+        plugin(cmd, auth_dir, name_prefix, show_ip)
 
         return 0
 
