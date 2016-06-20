@@ -21,6 +21,21 @@ allows the harness to find:
 The harness will look in the **plugins** directory at startup looking for
 plugins and populating the plugin environment.
 
+Plugin Introspection
+____________________
+
+Each plugin will have a function: **plugin()**.
+
+Calling this function gets information for that plugin.  The returned data
+will contain:
+
+* plugin code name
+* plugin entry function
+* ???
+
+
+If the function doesn't exist the file isn't a swarm_ams plugin.
+
 Harness
 -------
 
