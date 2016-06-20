@@ -24,13 +24,14 @@ plugins and populating the plugin environment.
 Plugin Introspection
 ____________________
 
-Each plugin will have a function: **plugin()**.
+Each plugin will have a function: **swarm_plugin()**.
 
-Calling this function gets information for that plugin.  The returned data
+Calling this function gets information for that plugin.  The returned dictionary
 will contain:
 
-* plugin code name
-* plugin entry function
+* plugin code name (**name**)
+* plugin entry function (**entry**)
+* plugin version string (**version**)
 * ???
 
 
