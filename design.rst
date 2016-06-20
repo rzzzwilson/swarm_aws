@@ -21,6 +21,8 @@ allows the harness to find:
 The harness will look in the **plugins** directory at startup looking for
 plugins and populating the plugin environment.
 
+Each plugin will also be a standalone executable.
+
 Plugin Introspection
 ____________________
 
