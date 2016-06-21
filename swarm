@@ -19,11 +19,13 @@ This runs the command "ls -l /tmp" on all running instances.
 
 import os
 import sys
+import glob
 import getopt
+import importlib
 import traceback
 
-import swarm
-from swarm import log
+import swarmcore
+from swarmcore import log
 
 log = log.Log('sw_cmd.log', log.Log.DEBUG)
 
@@ -32,7 +34,7 @@ log = log.Log('sw_cmd.log', log.Log.DEBUG)
 _Name = 'swarm_aws'
 _MajorRelease = 0
 _MinorRelease = 1
-__version__ = '%d %d' % (_MajorRelease, _MinorRelease)
+__version__ = '%d.%d' % (_MajorRelease, _MinorRelease)
 
 
 # default values
@@ -40,15 +42,79 @@ DefaultAuthDir = os.path.expanduser('~/.ssh')
 DefaultPluginDir = 'plugins'
 
 
-def swarm():
-    """Perform a swarm_aws command."""
+def get_plugin_info(plugin_dir=DefaultPluginDir):
+    """Examine plugin dir for possible plugins."""
 
-    # parse CLI args
-    args = sys.argv[1:]
+    # look at all *.py files in the plugon dir
+    plugin_path = os.path.join(plugin_dir, '*.py')
+    files = glob.glob(plugin_path)
+
+    # look at each possible plugin file
+    plugins = []
+    for plugin_path in files:
+        # first, get the import module name
+        filename = os.path.basename(plugin_path)
+        if filename.startswith('__'):
+            continue
+        (mod_name, _) = os.path.splitext(filename)
+
+        # try importing plugin
+        # we simulate a "from plugins import <module> as plugin"
+        try:
+            plugin_module = __import__(plugin_dir, globals(), locals(), [mod_name], -1)
+        except ImportError:
+            continue
+        plugin = getattr(plugin_module, mod_name)
+
+        # get 'Plugin' attribute - the plugin data
+        try:
+            info = getattr(plugin, 'Plugin')
+        except AttributeError:
+            continue
+        info['module'] = mod_name
+        plugins.append(info)
+
+    return plugins
+
+
+def swarm(cmd_args):
+    """Perform a swarm_aws command.
+
+    cmd_args  a list of args for the command (first is the command)
+    """
+
+    # split off the command string
+    command = cmd_args[0].lower()
+    cmd_args = cmd_args[1:]
 
     # get appropriate plugin
+    plugin_info = get_plugin_info()
+    plugin_data = None
+    for plugin in plugin_info:
+        if plugin['command'] == command:
+            plugin_data = plugin
+    # get a list acceptable commands
+    recognized_cmds = [x['command'] for x in plugin_info]
+
+    # handle any immediate commands
+    if command == 'list':
+        # list acceptable commands
+        print('Recognized commands are: %s' % ', '.join(recognized_cmds))
+        return 0
+
+    if plugin_data is None:
+        print("Unrecognized swarm command: '%s'" % command)
+        print('Recognized commands are: %s' % ', '.join(recognized_cmds))
+        return 10
 
     # pass args to plugin code
+    # we simulate a "from plugins import <module> as plugin"
+    try:
+        plugin_module = __import__('plugins', globals(), locals(), ['plugin'], -1)
+    except ImportError:
+        raise
+    plugin_entry = eval('plugin_module.%s.%s' % (plugin_data['module'], plugin_data['entry']))
+    return plugin_entry(cmd_args)
 
 def error(msg):
     """Print error message and quit."""
@@ -86,36 +152,32 @@ def excepthook(type, value, tb):
 # plug our handler into the python system
 sys.excepthook = excepthook
 
-# parse harness options
+# parse 'swarm' options
+# stop after first arg that doesn't start '-'
 argv = sys.argv[1:]
+for (i, arg) in enumerate(argv):
+    if not arg.startswith('-'):
+        cmd_args_ndx = i
+        break
+swarm_args = argv[:cmd_args_ndx]
+cmd_args = argv[cmd_args_ndx:]
 
 try:
-    opts, args = getopt.getopt(argv, 'hVv',
-                                     ['help', 'version', 'verbose'])
+    opts, args = getopt.getopt(swarm_args, 'hVv',
+                                           ['help', 'version', 'verbose'])
 except getopt.error, msg:
     usage()
-    return 1
-
-cmd_args = []
+    sys.exit(1)
 
 for (opt, param) in opts:
     if opt in ['-h', '--help']:
         usage()
+        sys.exit(0)
     elif opt in ['-v', '--verbose']:
         print('%s v%s' % (_Name, __version__))
+        sys.exit(0)
     elif opt in ['-v', '--verbose']:
         log.bump_level()
-    else:
-        cmd_args.append((opt, param))
-
-# parse the harness options, anything unrecognized signals the end of the harness
-# options.  everything else is passed to the harness to be handles by the plugin.
-for (opt, param) in opts:
-    if opt in ['-h', '--help']:
-        auth_dir = param
-        if not os.path.isdir(auth_dir):
-            error("Authentication directory '%s' doesn't exist" % auth_dir)
-    elif opt in ['-d', '--debug']:
 
 # call the handler code
-sys.exit(swarm())
+sys.exit(swarm(cmd_args))

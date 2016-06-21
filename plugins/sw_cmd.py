@@ -22,8 +22,8 @@ swarm_aws cmd "cat /var/spool/torque/mom_priv/config|grep \\"^\\\\\$usecp\\" | g
 """
 
 import os
-import ../swarm
-from ../swarm import log
+import swarmcore
+from swarmcore import log
 log = log.Log('sw_cmd.log', log.Log.DEBUG)
 
 
@@ -36,14 +36,16 @@ MinorRelease = 1
 DefaultAuthDir = os.path.expanduser('~/.ssh')
 
 
-def plugin(cmd, auth_dir, name_prefix, show_ip):
+def plugin(auth_dirDefaultAuthDir, name_prefix=None, show_ip=False, *args):
     """Perform the command remotely.
 
-    cmd        the command to execute remotely
     auth_dir     path to directory of authentication keys
     name_prefix  prefix of node name
     show_ip      if True show instance IP, else show EC2 name
+    cmd          the command to execute remotely
     """
+
+    print('plugin: *args=%s' % str(args))
 
     def ip_key(key):
         """Function to make a 'canonical' IP string for sorting.
@@ -67,7 +69,7 @@ def plugin(cmd, auth_dir, name_prefix, show_ip):
         return key[1]
 
     # get all instances
-    swm = swarm.Swarm()
+    swm = swarmcore.Swarm()
     all_instances = swm.instances()
 
     # get a filtered list of instances depending on name_prefix
@@ -114,11 +116,10 @@ def plugin(cmd, auth_dir, name_prefix, show_ip):
             print('%-17s*|%s' % (name, canonical_output))
 
 Plugin = {
-        'name': 'sw_cmd',
-        'entry': 'plugin',
-        'version': '%d.%d' % (MajorRelease, MinorRelease),
-        'command': 'cmd',
-       }
+          'entry': 'plugin',
+          'version': '%d.%d' % (MajorRelease, MinorRelease),
+          'command': 'cmd',
+         }
 
 
 if __name__ == '__main__':
