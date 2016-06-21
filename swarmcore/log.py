@@ -143,7 +143,9 @@ class Log(object):
         except ValueError:
             mod_name = __name__
         for (fpath, lnum, mname, _) in frames:
-            (fname, _) = os.path.basename(fpath).rsplit('.', 1)
+            fname = os.path.basename(fpath).rsplit('.', 1)
+            if len(fname) > 1:
+                fname = fname[0]
             if fname != mod_name:
                 break
 
