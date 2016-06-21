@@ -3,7 +3,7 @@
 #
 
 clean:
-	rm -f *.pyc *.log swarm/*.pyc
+	rm -f *.pyc *.log swarmcore/*.pyc plugins/*.pyc
 
 count:
 	wc -l *.py swarm/*.py
