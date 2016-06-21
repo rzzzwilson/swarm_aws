@@ -34,3 +34,9 @@ credentials, **name_prefix** holds the instance name prefix, and **show_ip**
 is True if the results are to show the instance IP.
 
 The ***args** parameter is a tuple holding the command parameters.
+
+Caveat
+------
+
+The plugin mechanism works, but is a tad clumsy.
+See if we can make it more pythonic.
