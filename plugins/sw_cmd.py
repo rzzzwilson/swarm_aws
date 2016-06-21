@@ -31,21 +31,24 @@ log = log.Log('sw_cmd.log', log.Log.DEBUG)
 MajorRelease = 0
 MinorRelease = 1
 
+# plugin info
+Plugin = {
+          'entry': 'command',
+          'version': '%d.%d' % (MajorRelease, MinorRelease),
+          'command': 'cmd',
+         }
 
 # default values
 DefaultAuthDir = os.path.expanduser('~/.ssh')
 
 
-def plugin(auth_dir=DefaultAuthDir, name_prefix=None, show_ip=False, *args):
-    """Perform the command remotely.
+#def plugin(auth_dir=DefaultAuthDir, name_prefix=None, show_ip=False, *args, **kwargs):
+def command(args, kwargs):
+    """Perform the command on required instances..
 
-    auth_dir     path to directory of authentication keys
-    name_prefix  prefix of node name
-    show_ip      if True show instance IP, else show EC2 name
-    cmd          the command to execute remotely
+    args    list of arg values
+    kwargs  a dict of default values
     """
-
-    print('plugin: *args=%s' % str(args))
 
     def ip_key(key):
         """Function to make a 'canonical' IP string for sorting.
@@ -114,12 +117,6 @@ def plugin(auth_dir=DefaultAuthDir, name_prefix=None, show_ip=False, *args):
             print('%-17s |%s' % (name, canonical_output))
         else:
             print('%-17s*|%s' % (name, canonical_output))
-
-Plugin = {
-          'entry': 'plugin',
-          'version': '%d.%d' % (MajorRelease, MinorRelease),
-          'command': 'cmd',
-         }
 
 
 if __name__ == '__main__':

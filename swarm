@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-This is the swarm_aws harness.  It runs a plugin and passes parameters to it.
+This is the swarm_aws harness.  It runs a plugin and passes plugin parameters
+to it.
 
 Example: swarm_aws <options> cmd <cmd_options> <command>
 
@@ -27,11 +28,11 @@ import traceback
 import swarmcore
 from swarmcore import log
 
-log = log.Log('sw_cmd.log', log.Log.DEBUG)
+log = log.Log('swarm.log', log.Log.DEBUG)
 
 
-# program version
-_Name = 'swarm_aws'
+# program name and version
+_Name = 'swarm'
 _MajorRelease = 0
 _MinorRelease = 1
 __version__ = '%d.%d' % (_MajorRelease, _MinorRelease)
@@ -93,13 +94,19 @@ def swarm(cmd_args):
     for plugin in plugin_info:
         if plugin['command'] == command:
             plugin_data = plugin
-    # get a list acceptable commands
+    # get a list of acceptable commands
     recognized_cmds = [x['command'] for x in plugin_info]
 
     # handle any immediate commands
     if command == 'list':
-        # list acceptable commands
-        print('Recognized commands are: %s' % ', '.join(recognized_cmds))
+        # list acceptable commands and version
+        list_info = ['list\t(builtin)', 'help\t(builtin)']
+        for plugin in plugin_info:
+            list_info.append('%s\tv%s' % (plugin['command'], plugin['version']))
+        print('Recognized commands are:\n\t%s' % '\n\t'.join(sorted(list_info)))
+        return 0
+    elif command == 'help':
+        usage()
         return 0
 
     if plugin_data is None:
@@ -114,7 +121,8 @@ def swarm(cmd_args):
     except ImportError:
         raise
     plugin_entry = eval('plugin_module.%s.%s' % (plugin_data['module'], plugin_data['entry']))
-    return plugin_entry(cmd_args)
+    def_args = {}
+    return plugin_entry(cmd_args, def_args)
 
 def error(msg):
     """Print error message and quit."""
@@ -158,9 +166,12 @@ argv = sys.argv[1:]
 for (i, arg) in enumerate(argv):
     if not arg.startswith('-'):
         cmd_args_ndx = i
+        swarm_args = argv[:cmd_args_ndx]
+        cmd_args = argv[cmd_args_ndx:]
         break
-swarm_args = argv[:cmd_args_ndx]
-cmd_args = argv[cmd_args_ndx:]
+else:
+    swarm_args = argv
+    cmd_args = []
 
 try:
     opts, args = getopt.getopt(swarm_args, 'hVv',
