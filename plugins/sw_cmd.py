@@ -36,7 +36,7 @@ MinorRelease = 1
 DefaultAuthDir = os.path.expanduser('~/.ssh')
 
 
-def plugin(auth_dirDefaultAuthDir, name_prefix=None, show_ip=False, *args):
+def plugin(auth_dir=DefaultAuthDir, name_prefix=None, show_ip=False, *args):
     """Perform the command remotely.
 
     auth_dir     path to directory of authentication keys
