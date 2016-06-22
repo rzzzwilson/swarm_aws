@@ -14,7 +14,7 @@ where <options> is zero or more of:
     -i  <image>     sets image to use
     -k  <keyname>   set key to use
     -p  <prefix>    set the name prefix
-    -s  <secgroup>  set the security group(s) (can be: 'coepp,default')
+    -s  <secgroup>  set the security group(s) (can be: 'xyzzy,default')
     -u  <userdata>  path to a userdata script file
     -v              become verbose (cumulative)
     -V              print version and stop
@@ -53,17 +53,19 @@ Plugin = {
 
 # default instance  values
 DefaultAuthPath = os.path.expanduser('~/.ssh')
-DefaultFlavour = 'm1.small'
+DefaultRegion = 'ap-southeast-2'
+DefaultFlavour = 't2.micro'
 DefaultImage = None
-DefaultKey = 'nectarkey'
-DefaultNamePrefix = 'cxwn'
-DefaultSecgroup = 'coepp'
+DefaultKey = 'ec2-sydney'
+DefaultNamePrefix = 'instance{number}'
+DefaultSecgroup = 'xyzzy'
 DefaultUserdata = None
 
 # dictionary to map config names to global names
 # the key is the name as it appears in the config file
 # the value is the name of the global variable that should be changed
 Config2Global = {'image': 'DefaultImage',
+                 'region': 'DefaultRegion',
                  'flavor': 'DefaultFlavour',
                  'flavour': 'DefaultFlavour',
                  'key': 'DefaultKey',
@@ -81,6 +83,19 @@ Config2Global = {'image': 'DefaultImage',
                  'authpath': 'DefaultAuthPath',
                 }
 
+
+def warn(msg):
+    """Print error message and continue."""
+
+    log.warn(msg)
+    print(msg)
+
+def usage(msg=None):
+    """Print help for the befuddled user."""
+
+    if msg:
+        print(msg+'\n')
+    print(__doc__)        # module docstring used
 
 def load_config(config_file):
     """Set global defaults from the config file."""
@@ -164,6 +179,7 @@ def start(args, kwargs):
                                       'secgroup=', 'userdata=', 'verbose',
                                       'version', ])
     except getopt.error, msg:
+        print('Point 0')
         usage()
         return 1
 
@@ -215,13 +231,14 @@ def start(args, kwargs):
         elif opt in ['-u', '--userdata']:
             userdata = param
         elif opt in ['-V', '--version']:
-            print('%s %s' % (__program__, __version__))
+            print('%s %s' % (Plugin['command'], Plugin['version']))
             return 0
         elif opt in ['-v', '--verbose']:
             # done above
             pass
 
     if len(args) != 1:
+        print('Point 1')
         usage()
         return 1
     try:
@@ -240,13 +257,9 @@ def start(args, kwargs):
     log.debug('sw_start: userdata=%s' % str(userdata))
     log.debug('sw_start: auth=%s' % auth)
 
-    # ensure name is just prefix, generate name with number suffix
+    # look at prefix - if it doesn't contain '{number' add it
     prefix_name = name
-    if 'number:' in name:
-        index = name.index('{')
-        prefix_name = name[:index]
-        log.debug('prefix_name=%s' % prefix_name)
-    else:
+    if '{number:' not in name:
         name = name + '{number:03d}'
 
     log.debug('sw_start: name=%s' % name)
@@ -254,7 +267,7 @@ def start(args, kwargs):
 
     print('Starting %d worker nodes, prefix=%s' % (num, prefix_name))
 
-    # connect to NeCTAR
+    # connect to AWS
     s = swarmcore.Swarm(auth_dir=auth)
 
     # get the userdata as a string
@@ -269,11 +282,11 @@ def start(args, kwargs):
                   secgroup=secgroup, userdata=userdata_str)
     log.debug('Total of %d new worker nodes, waiting for connection'
               % len(new))
-    if Verbose:
-        print('Total of %d new worker nodes, waiting until sane' % len(new))
-
-    s.wait_connect(new)
-    log.debug('%d new worker nodes now connected' % num)
+    #    if Verbose:
+    #    print('Total of %d new worker nodes, waiting until sane' % len(new))
+#
+#    s.wait_connect(new)
+#    log.debug('%d new worker nodes now connected' % num)
     if Verbose:
         print('%d new worker nodes booted and sane' % len(new))
 
@@ -297,19 +310,6 @@ if __name__ == '__main__':
         sys.exit(1)
 
 
-    def warn(msg):
-        """Print error message and continue."""
-
-        log.warn(msg)
-        print(msg)
-
-
-    def usage(msg=None):
-        """Print help for the befuddled user."""
-
-        if msg:
-            print(msg+'\n')
-        print(__doc__)        # module docstring used
 
     def expand_path(path):
         """Expand path into absolute form."""

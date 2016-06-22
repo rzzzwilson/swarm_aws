@@ -32,7 +32,7 @@ class Swarm(object):
     #DefaultFlavour = 't2.nano'
     DefaultFlavour = 't2.micro'
     DefaultKey = 'ec2-sydney'
-    DefaultSecgroup = 'coepp'.split(',')
+    DefaultSecgroup = 'xyzzy'.split(',')
 
     DefaultRegionName = 'ap-southeast-2'
     DefaultConfig = None
@@ -213,7 +213,8 @@ class Swarm(object):
 
         pending_instances = self.ec2.create_instances(ImageId=image,
                                                       InstanceType=flavour,
-                                                      MinCount=1,
+                                                      #MinCount=1,
+                                                      MinCount=num,
                                                       MaxCount=num)
 
         self.log('started %d instances, flavour=%s, key=%s, secgroup=%s, image=%s'
