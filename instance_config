@@ -1,0 +1,21 @@
+#
+# Config file to start instances
+#
+
+# name of the key used to start instances
+keypair = 'ec2-sydney'
+
+# image to start
+image = 'ami-d9d7f9ba'
+
+# worker node name prefix, number automatically appended
+prefix = 'instance-{number:04d}'
+
+# the default flavor of new instance(s)
+flavour = 't2.micro'
+
+#secgroup = 'coepp'.split(',')
+
+# default region
+region = 'ap-southeast-2'
+
