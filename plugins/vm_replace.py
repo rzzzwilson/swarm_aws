@@ -15,7 +15,7 @@ where <options> is zero or more of:
     -i  <image>     sets image to use
     -k  <keyname>   set key to use
     -p  <prefix>    set the name prefix
-    -s  <secgroup>  set the security group(s) (can be: 'coepp,default')
+    -s  <secgroup>  set the security group(s) (can be: 'xyzzy,default')
     -u  <userdata>  path to a userdata script file
     -v              become verbose (cumulative)
     -V              print version and stop
@@ -52,7 +52,7 @@ DefaultFlavour = 'm1.small'
 DefaultImage = None
 DefaultKey = 'nectarkey'
 DefaultNamePrefix = 'cxwn'
-DefaultSecgroup = 'coepp'
+DefaultSecgroup = 'xyzzy'
 DefaultUserdata = None
 
 # dictionary to map config names to global names
