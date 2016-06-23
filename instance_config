@@ -19,3 +19,5 @@ flavour = 't2.micro'
 # default region
 region = 'ap-southeast-2'
 
+# default zone
+zone = 'ap-southeast-2b'

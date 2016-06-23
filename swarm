@@ -3,9 +3,9 @@
 
 """
 This is the swarm_aws harness.  It runs a plugin and passes plugin parameters
-to it.
+to it:
 
-Example: swarm_aws <options> cmd <cmd_options> <command>
+    swarm_aws <options> cmd <cmd_options> <command>
 
 where <options>     are the options for swarm_aws,
       <cmd_options> are the 'cmd' options and
@@ -13,9 +13,10 @@ where <options>     are the options for swarm_aws,
 
 An example:
 
-swarm_aws cmd "ls -l /tmp"
+    swarm_aws -v cmd -i "ls -l /tmp"
 
-This runs the command "ls -l /tmp" on all running instances.
+This runs the command "ls -l /tmp" on all running instances.  The swarm harness
+gets the '-v' option and the 'cmd' plugin gets '-i'.
 """
 
 import os
@@ -56,7 +57,7 @@ def get_plugin_info(plugin_dir=DefaultPluginDir):
         # first, get the import module name
         filename = os.path.basename(plugin_path)
         if filename.startswith('__'):
-            continue
+            continue        # ignore __init__.py, etc
         (mod_name, _) = os.path.splitext(filename)
 
         # try importing plugin
@@ -78,11 +79,16 @@ def get_plugin_info(plugin_dir=DefaultPluginDir):
     return plugins
 
 
-def swarm(cmd_args):
+def swarm(verbose, cmd_args):
     """Perform a swarm_aws command.
 
+    verbose   True if we are to be verbose
     cmd_args  a list of args for the command (first is the command)
     """
+
+    # if no args at all assume 'help' command
+    if not cmd_args:
+        cmd_args = ['help']
 
     # split off the command string
     command = cmd_args[0].lower()
@@ -96,22 +102,33 @@ def swarm(cmd_args):
             plugin_data = plugin
     # get a list of acceptable commands
     recognized_cmds = [x['command'] for x in plugin_info]
+    # add in the builtin commands
+    builtins = ['help', 'list']
+    recognized_cmds.extend(builtins)
+    recognized_cmds = sorted(recognized_cmds)
+    if verbose:
+        log('Recognized commands:\n\t%s' % str(recognized_cmds))
 
-    # handle any immediate commands
-    if command == 'list':
-        # list acceptable commands and version
-        list_info = ['list\t(builtin)', 'help\t(builtin)']
-        for plugin in plugin_info:
-            list_info.append('%s\tv%s' % (plugin['command'], plugin['version']))
-        print('Recognized commands are:\n\t%s' % '\n\t'.join(sorted(list_info)))
-        return 0
-    elif command == 'help':
-        usage()
-        return 0
+    # handle any builtin commands
+    if command in builtins:
+        if command == 'list':
+            # list acceptable commands and version
+            list_info = ['list\t(builtin)', 'help\t(builtin)']
+            for plugin in plugin_info:
+                list_info.append('%s\tv%s' % (plugin['command'], plugin['version']))
+            list_info = sorted(list_info)
+            print('Recognized commands are:\n\t%s' % ('\n\t'.join(list_info)))
+            return 0
+        elif command == 'help':
+            usage()
+            return 0
+        else:
+            print("Unhandled builtin command: '%s'" % command)
+            return 10
 
     if plugin_data is None:
         print("Unrecognized swarm command: '%s'" % command)
-        print('Recognized commands are: %s' % ', '.join(recognized_cmds))
+        print('Recognized commands are:\n\t%s' % ('\n\t'.join(recognized_cmds)))
         return 10
 
     # pass args to plugin code
@@ -180,15 +197,17 @@ except getopt.error, msg:
     usage()
     sys.exit(1)
 
+verbose = False
 for (opt, param) in opts:
     if opt in ['-h', '--help']:
         usage()
         sys.exit(0)
-    elif opt in ['-v', '--verbose']:
+    elif opt in ['-V', '--version']:
         print('%s v%s' % (_Name, __version__))
         sys.exit(0)
     elif opt in ['-v', '--verbose']:
         log.bump_level()
+        verbose = True
 
 # call the handler code
-sys.exit(swarm(cmd_args))
+sys.exit(swarm(verbose, cmd_args))

@@ -14,6 +14,7 @@ where <options> is zero or more of:
     -i  <image>     sets image to use
     -k  <keyname>   set key to use
     -p  <prefix>    set the name prefix
+    -r  <region>    set the instance region
     -s  <secgroup>  set the security group(s) (can be: 'xyzzy,default')
     -u  <userdata>  path to a userdata script file
     -v              become verbose (cumulative)
@@ -54,6 +55,7 @@ Plugin = {
 # default instance  values
 DefaultAuthPath = os.path.expanduser('~/.ssh')
 DefaultRegion = 'ap-southeast-2'
+DefaultZone = 'ap-southeast-2b'
 DefaultFlavour = 't2.micro'
 DefaultImage = None
 DefaultKey = 'ec2-sydney'
@@ -68,6 +70,7 @@ Config2Global = {'image': 'DefaultImage',
                  'region': 'DefaultRegion',
                  'flavor': 'DefaultFlavour',
                  'flavour': 'DefaultFlavour',
+                 'zone': 'DefaultZone',
                  'key': 'DefaultKey',
                  'keypair': 'DefaultKey',
                  'nameprefix': 'DefaultNamePrefix',
@@ -82,6 +85,9 @@ Config2Global = {'image': 'DefaultImage',
                  'authdir': 'DefaultAuthPath',
                  'authpath': 'DefaultAuthPath',
                 }
+
+# flag for print verbosity
+Verbose = False
 
 
 def warn(msg):
@@ -104,7 +110,8 @@ def load_config(config_file):
     if not os.path.isfile(config_file):
         error("Can't find config file %s" % config_file)
 
-    log.debug("load_config: loading config from '%s'" % str(config_file))
+    if Verbose:
+        log.debug("load_config: loading config from '%s'" % str(config_file))
 
     # read config, look for known variable definitions
     with open(config_file, 'rb') as fd:
@@ -148,11 +155,12 @@ def load_config(config_file):
         sys.exit(1)
 
     # update globals with values from the config file
-    log.debug('load_config: New globals:')
-    for (key, value) in updated_globals.items():
-        log.debug('    %s: %s,' % (str(key), str(value)))
-
     globals().update(updated_globals)
+
+    if Verbose:
+        log.debug('load_config: New globals:')
+        for (key, value) in updated_globals.items():
+            log.debug('    %s: %s,' % (str(key), str(value)))
 
 def start(args, kwargs):
     """Start a number of new cloud Instances.
@@ -171,15 +179,16 @@ def start(args, kwargs):
         auth      path to auth directory
     """
 
+    global Verbose
+
     # parse the command args
     try:
-        (opts, args) = getopt.getopt(args, 'a:c:f:hi:k:p:s:u:vV',
+        (opts, args) = getopt.getopt(args, 'a:c:f:hi:k:p:r:s:u:vV',
                                      ['auth=', 'config=', 'flavour=', 'help',
-                                      'image=', 'key=', 'prefix=',
+                                      'image=', 'key=', 'prefix=', 'region=',
                                       'secgroup=', 'userdata=', 'verbose',
                                       'version', ])
     except getopt.error, msg:
-        print('Point 0')
         usage()
         return 1
 
@@ -194,21 +203,22 @@ def start(args, kwargs):
             log.bump_level()
 
     # read config file, if we have one
-    # this updates the globals like DefaultAuthPath
+    # this may update the variables just set from defaults
     if config:
         load_config(config)
 
-    # set defaults from 'kwargs'
+    # set variables to possibly modified defaults
     auth = DefaultAuthPath
     flavour = DefaultFlavour
     image = DefaultImage
     key = DefaultKey
     name = DefaultNamePrefix
+    region = DefaultRegion
     secgroup = DefaultSecgroup
     userdata = DefaultUserdata
 
     # now parse the options
-    ConfigUpdate = True
+    # this is the users final chance to change default values
     for (opt, param) in opts:
         if opt in ['-a', '--auth']:
             auth = param
@@ -226,6 +236,8 @@ def start(args, kwargs):
             key = param
         elif opt in ['-p', '--prefix']:
             name = param
+        elif opt in ['-r', '--region']:
+            region = param
         elif opt in ['-s', '--secgroup']:
             secgroup = param
         elif opt in ['-u', '--userdata']:
@@ -238,7 +250,6 @@ def start(args, kwargs):
             pass
 
     if len(args) != 1:
-        print('Point 1')
         usage()
         return 1
     try:
@@ -248,51 +259,48 @@ def start(args, kwargs):
     if num < 0:
         error('Instance number must be a non-negative integer')
 
-    log.debug('sw_start: num=%d' % num)
-    log.debug('sw_start: name=%s' % name)
-    log.debug('sw_start: image=%s' % image)
-    log.debug('sw_start: flavour=%s' % flavour)
-    log.debug('sw_start: key=%s' % key)
-    log.debug('sw_start: secgroup=%s' % str(secgroup))
-    log.debug('sw_start: userdata=%s' % str(userdata))
-    log.debug('sw_start: auth=%s' % auth)
+    if Verbose:
+        log.debug('sw_start: num=%d' % num)
+        log.debug('sw_start: name=%s' % name)
+        log.debug('sw_start: image=%s' % image)
+        log.debug('sw_start: flavour=%s' % flavour)
+        log.debug('sw_start: key=%s' % key)
+        log.debug('sw_start: region=%s' % region)
+        log.debug('sw_start: secgroup=%s' % str(secgroup))
+        log.debug('sw_start: userdata=%s' % str(userdata))
+        log.debug('sw_start: auth=%s' % auth)
 
     # look at prefix - if it doesn't contain '{number' add it
     prefix_name = name
     if '{number:' not in name:
         name = name + '{number:03d}'
 
-    log.debug('sw_start: name=%s' % name)
-    log.debug('sw_start: prefix_name=%s' % prefix_name)
+    if Verbose:
+        log.debug('sw_start: name=%s' % name)
+        log.debug('sw_start: prefix_name=%s' % prefix_name)
 
-    print('Starting %d worker nodes, prefix=%s' % (num, prefix_name))
+    if Verbose:
+        print('Starting %d worker nodes, prefix=%s' % (num, prefix_name))
 
     # connect to AWS
-    s = swarmcore.Swarm(auth_dir=auth)
+    s = swarmcore.Swarm(auth_dir=auth, verbose=Verbose)
 
     # get the userdata as a string
     userdata_str = None
     if userdata is not None:
         with open(userdata, 'rb') as fd:
             userdata_str = fd.read()
-        log.debug('userdata:\n%s' % userdata_str)
+        if Verbose:
+            log.debug('userdata:\n%s' % userdata_str)
 
     # start instance nodes, wait until running
     new = s.start(num, name, image=image, flavour=flavour, key=key,
                   secgroup=secgroup, userdata=userdata_str)
-    log.debug('Total of %d new worker nodes, waiting for connection'
-              % len(new))
-    #    if Verbose:
-    #    print('Total of %d new worker nodes, waiting until sane' % len(new))
-#
-#    s.wait_connect(new)
-#    log.debug('%d new worker nodes now connected' % num)
     if Verbose:
         print('%d new worker nodes booted and sane' % len(new))
 
     if Verbose:
         print('Finished!')
-
     log.debug('==============================================================')
     log.debug('=========================  FINISHED  =========================')
     log.debug('==============================================================')
@@ -369,8 +377,6 @@ if __name__ == '__main__':
     def main(argv=None):
         import os
 
-        global ConfigUpdate, Verbose
-
         if argv is None:
             argv = sys.argv[1:]
 
@@ -396,21 +402,3 @@ if __name__ == '__main__':
         sw_start(vm_num, name, image, flavour, key, secgroup, userdata, auth)
 
         return 0
-
-
-    # our own handler for uncaught exceptions
-    def excepthook(type, value, tb):
-        msg = '\n' + '=' * 80
-        msg += '\nUncaught exception:\n'
-        msg += ''.join(traceback.format_exception(type, value, tb))
-        msg += '=' * 80 + '\n'
-
-        print msg
-        log.critical(msg)
-        sys.exit(1)
-
-    # plug our handler into the python system
-    sys.excepthook = excepthook
-
-
-    sys.exit(main(sys.argv[1:]))

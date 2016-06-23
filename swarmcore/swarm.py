@@ -67,8 +67,9 @@ class Swarm(object):
         return (_MajorRelease, _MinorRelease)
 
 
-    def __init__(self, auth_dir=None, access_key_id=None, secret_access_key=None,
-                 region_name=DefaultRegionName, config=DefaultConfig):
+    def __init__(self, auth_dir=None, access_key_id=None,
+                 secret_access_key=None, region_name=DefaultRegionName,
+                 config=DefaultConfig, verbose=False):
         """Initialize the swarm.
 
         auth_dir           path to the directory holding keys
@@ -87,6 +88,8 @@ class Swarm(object):
         self.log = log.Log('swarm.log', log.Log.DEBUG)
 
         self.region_name = region_name
+        self.verbose = verbose
+        self.log('self.verbose=%s' % str(self.verbose))
 
         # override config stuff from the environment if not given
         access_key_id = self._check_env(access_key_id, 'AWS_ACCESS_KEY_ID')
@@ -135,14 +138,23 @@ class Swarm(object):
 
         self.ec2c = boto3.client('ec2')
 
+        # get a list of regions
+        self.regions = self._get_regions()
+        if self.verbose:
+            self.log('Regions:\n%s' % str(self.regions))
+
+        # get a list of zones
+        self.zones = self._get_availability_zones()
+        if self.verbose:
+            self.log('Zones:\n%s' % str(self.zones))
+
         self.log('Swarm %s initialized!' % __version__)
 
 
     def instances(self):
         """Returns a list of all running instances."""
 
-        return list(self.ec2.instances.all())
-
+        return sorted(list(self.ec2.instances.all()))
 
     def start(self, num, name, image=DefaultImage,
               flavour=DefaultFlavour, key=DefaultKey,
@@ -862,8 +874,6 @@ class Swarm(object):
         """
 
         result = []
-        #filters = [{'region-name': region_name, 'state': state}]
-        #az = self.ec2c.describe_availability_zones(Filters=filters)
         az = self.ec2c.describe_availability_zones()
         for zone in az['AvailabilityZones']:
             if zone['State'] == state:
