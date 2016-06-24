@@ -65,7 +65,7 @@ class Log(object):
 
         # don't allow logfile to change after initially set
         if hasattr(self, 'logfile'):
-            self.critical('Ignore attempt to reconfigure logging')
+            #self.critical('Ignore attempt to reconfigure logging')
             return
 
         # OK, configure logging

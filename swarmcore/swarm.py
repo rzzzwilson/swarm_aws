@@ -651,8 +651,20 @@ class Swarm(object):
     def filter_name_prefix(self, prefix):
         """Return filter for instance name starts with a prefix."""
 
-        return lambda instance: instance.name.startswith(prefix)
+        def check_name(instance):
+            """Check instance 'instance' has name that starts with 'prefix'."""
 
+            if instance.tags:
+               for d in instance.tags:
+                   if 'Key' in d and d['Key'] == 'Name':
+                       return d['Value'].startswith(prefix)
+
+        return check_name
+
+    def filter_state(self, state):
+        """Return filter for instances with a given state."""
+
+        return lambda instance: instance.state['Name'] == state
 
     def filter_flavour(self, flavour):
         """Return filter for instance flavour."""

@@ -3,18 +3,20 @@
 
 """
 This program is used to stop a set of instances.
+In AWS-speak, set required instances to the 'terminated' state.
 
 Usage: sw_stop <options>
 
 where <options> is zero or more of:
     -h   --help     print this help and stop
     -p   --prefix   name prefix used to select nodes (required)
+    -s   --state    state of instanes to terminate
     -V   --version  print version information and stop
     -v   --verbose  be verbose (cumulative)
     -w   --wait     wait until instances actually stopped
 
 As an example, the following will stop all instances whose name start 'cxwn' and
-will wait until the servers are actually gone:
+will wait until the instances are actually gone:
     sw_stop -p test -w
 """
 
@@ -70,6 +72,7 @@ def stop(args, kwargs):
         flavour   flavour of instance
         key       key for instance
         secgroup  security group(s)
+        state     state of selected instances
         userdata  instance startup script path
         auth      path to auth directory
     """
@@ -78,14 +81,14 @@ def stop(args, kwargs):
 
     # parse the command args
     try:
-        (opts, args) = getopt.getopt(args, 'hp:Vviw',
-                                     ['help', 'prefix=',
+        (opts, args) = getopt.getopt(args, 'hp:s:Vviw',
+                                     ['help', 'prefix=', 'state=',
                                       'version', 'verbose', 'wait'])
     except getopt.error, msg:
         usage()
         return 1
 
-    Verbose = 0
+    Verbose = False
     for (opt, param) in opts:
         if opt in ['-v', '--verbose']:
             Verbose = True
@@ -93,6 +96,7 @@ def stop(args, kwargs):
 
     # now parse the options
     name_prefix = None
+    state = None
     wait = False
     for (opt, param) in opts:
         if opt in ['-h', '--help']:
@@ -100,6 +104,8 @@ def stop(args, kwargs):
             return 0
         elif opt in ['-p', '--prefix']:
             name_prefix = param
+        elif opt in ['-s', '--state']:
+            state = param
         elif opt in ['-V', '--version']:
             print('%s v%s' % (Plugin['command'], Plugin['version']))
             return 0
@@ -112,40 +118,69 @@ def stop(args, kwargs):
         usage()
         return 1
 
+    # it's too dangerous to allow name_prefix==None to terminate all instances
     if name_prefix is None:
-        error('You must specify a instance name prefix.')
+        error('You must specify an instance name prefix.')
 
-    # get all servers
+    # get all instances
     swm = swarmcore.Swarm(verbose=Verbose)
     all_instances = swm.instances()
+    if Verbose:
+        print('instances=%s' % str(all_instances))
+        log('instances=%s' % str(all_instances))
 
-    # get a filtered list of instances depending on name_prefix
-    prefixes = []
+    # get a filtered list of instances depending on name_prefix, state, etc
+    prefix_str = '*'
     filtered_instances = all_instances
+    for i in all_instances:
+        print('%s: .state=%s' % (str(i), str(i.state)))
     if name_prefix is not None:
         prefixes = name_prefix.split(',')
+        prefix_str = '*|'.join(prefixes)
         filtered_instances = []
         for prefix in prefixes:
-            filter = swm.filter_name_prefix(prefix)
-            s = swm.filter(all_instances, filter)
+            f = swm.filter_name_prefix(prefix)
+            s = swm.filter(all_instances, f)
             filtered_instances = swm.union(filtered_instances, s)
+    if Verbose:
+        print('name_prefix=%s, prefix_str=%s' % (str(name_prefix), prefix_str))
+        print('filtered_instances=%s' % str(filtered_instances))
+        log('name_prefix=%s, prefix_str=%s' % (str(name_prefix), prefix_str))
+        log('filtered_instances=%s' % str(filtered_instances))
+    state_str = '*'
+    if state is not None:
+        state_list = state.split(',')
+        state_str = state
+        state_instances = []
+        for st in state_list:
+            #f = swm.filter_state(st)
+            f = swm.filter_state('xyzzy')
+            s = swm.filter(filtered_instances, f)
+            state_instances = swm.union(filtered_instances, s)
+    filtered_instances = state_instances
+    if Verbose:
+        print('state=%s, state_str=%s' % (str(state), state_str))
+        print('filtered_instances=%s' % str(filtered_instances))
+        log('state=%s, state_str=%s' % (str(state), state_str))
+        log('filtered_instances=%s' % str(filtered_instances))
 
-    print("Stopping %d instances named '%s*'"
-          % (len(filtered_instances), '*|'.join(prefixes)))
+    print("Stopping %d instances named '%s', state='%s'"
+          % (len(filtered_instances), prefix_str, state_str))
     log("Stopping %d instances named '%s*'"
         % (len(filtered_instances), '*|'.join(prefixes)))
 
     # if no filtered instances, do nothing
     if len(filtered_instances) == 0:
         print("No instances found with prefix: '%s*'" % '*|'.join(prefixes))
-        return
+        return 0
 
     # give user a chance to bail
     answer = raw_input('Stopping %d instances.  Proceed? (y/N): '
                        % len(filtered_instances))
     answer = answer.strip().lower()
     if len(answer) == 0 or answer[0] != 'y':
-        return
+        log.info('User chose not to stop %d instances' % len(filtered_instances))
+        return 0
 
     log.info('User elected to terminate %d instances:\n%s'
              % (len(filtered_instances), str(filtered_instances)))
