@@ -90,17 +90,13 @@ Config2Global = {'image': 'DefaultImage',
 Verbose = False
 
 
-def warn(msg):
-    """Print error message and continue."""
-
-    log.warn(msg)
-    print(msg)
-
 def usage(msg=None):
     """Print help for the befuddled user."""
 
     if msg:
-        print(msg+'\n')
+        print('*'*60)
+        print(msg)
+        print('*'*60)
     print(__doc__)        # module docstring used
 
 def load_config(config_file):
@@ -108,7 +104,7 @@ def load_config(config_file):
 
     # see if config file exists
     if not os.path.isfile(config_file):
-        error("Can't find config file %s" % config_file)
+        utils.error("Can't find config file '%s'" % config_file)
 
     if Verbose:
         log.debug("load_config: loading config from '%s'" % str(config_file))
@@ -129,23 +125,23 @@ def load_config(config_file):
         # expect lines of the form 'name = value'
         fields = line.split('=')
         if len(fields) != 2:
-            error('Line %d of %s has bad format: %s'
-                  % (l+1, config_file, orig_line))
+            utils.error("Line %d of '%s' has bad format: %s"
+                        % (l+1, config_file, orig_line))
         (name, value) = fields
 
         name = name.strip().lower()
         value = value.strip()
 
         if name not in Config2Global:
-            warn("Line %d of %s: name '%s' is unrecognized"
-                 % (l+1, config_file, name))
+            utils.warn("Line %d of %s: name '%s' is unrecognized"
+                       % (l+1, config_file, name))
             errors = True
             continue
 
         global_name = Config2Global[name]
         if global_name in updated_globals:
-            error("Line %d of %s: '%s' defined twice"
-                  % (l+1, config_file, name))
+            utils.error("Line %d of %s: '%s' defined twice"
+                        % (l+1, config_file, name))
             errors = True
         else:
             # add global+new value to dict - eval() removes any quotes
@@ -188,8 +184,8 @@ def start(args, kwargs):
                                       'image=', 'key=', 'prefix=', 'region=',
                                       'secgroup=', 'userdata=', 'verbose',
                                       'version', ])
-    except getopt.error, msg:
-        usage()
+    except getopt.error, e:
+        usage(str(e.msg))
         return 1
 
     # do -c and -v now
@@ -250,14 +246,16 @@ def start(args, kwargs):
             pass
 
     if len(args) != 1:
-        usage()
+        usage('You must supply the number of instances to start.')
         return 1
     try:
         num = int(args[0])
     except ValueError:
-        error('Instance number must be a non-negative integer')
+        usage('Instance number must be a non-negative integer')
+        sys.exit(1)
     if num < 0:
-        error('Instance number must be a non-negative integer')
+        usage('Instance number must be a non-negative integer')
+        sys.exit(1)
 
     if Verbose:
         log.debug('sw_start: num=%d' % num)
@@ -297,108 +295,10 @@ def start(args, kwargs):
     new = s.start(num, name, image=image, flavour=flavour, key=key,
                   secgroup=secgroup, userdata=userdata_str)
     if Verbose:
-        print('%d new worker nodes booted and sane' % len(new))
+        print('%d new instances running' % len(new))
 
     if Verbose:
         print('Finished!')
     log.debug('==============================================================')
     log.debug('=========================  FINISHED  =========================')
     log.debug('==============================================================')
-
-
-
-if __name__ == '__main__':
-    import swarm.log as log
-    log = log.Log('/tmp/sw_start.log', log.Log.DEBUG)
-
-    def error(msg):
-        """Print error message and quit."""
-
-        print(msg)
-        sys.exit(1)
-
-
-
-    def expand_path(path):
-        """Expand path into absolute form."""
-
-        if path is not None:
-            path = os.path.expanduser(path)
-        return path
-
-    def check_everything(auth, flavour, image, key, name, secgroup, userdata):
-        """Check that params are correct."""
-
-        msg = []
-
-        # check that the NeCTAR environment is available
-        for env_var in ['OS_USERNAME', 'OS_PASSWORD',
-                        'OS_TENANT_NAME', 'OS_AUTH_URL']:
-            try:
-                os.environ[env_var]
-            except KeyError:
-                msg.append("You must set the '%s' environment variable"
-                           % env_var)
-
-        # check auth
-        if auth is None:
-            msg.append('You must specify an auth directory.')
-        else:
-            if not os.path.isdir(auth):
-                msg.append("Auth directory '%s' doesn't exist"
-                           % auth)
-
-        # check flavour
-        # can't really check anything yet
-
-        # check image
-        if image is None:
-            msg.append('You must specify an image name')
-
-        # check key
-        # can't really check anything yet
-
-        # check name
-        # can't really check anything yet
-
-        # check secgroup
-        # can't really check anything yet
-
-        # check userdata
-        if userdata and not os.path.isfile(userdata):
-            msg.append("Userdata file '%s' is not a file"
-                       % userdata)
-
-        # if we have errors, crash here
-        if msg:
-            error('\n'.join(msg))
-
-
-    def main(argv=None):
-        import os
-
-        if argv is None:
-            argv = sys.argv[1:]
-
-        try:
-            opts, args = getopt.getopt(argv, 'a:c:f:hi:k:p:s:u:vV',
-                                       ['auth=', 'config=', 'flavour=', 'help',
-                                        'image=', 'key=', 'prefix=',
-                                        'secgroup=', 'userdata=', 'verbose',
-                                        'version', ])
-        except getopt.error, msg:
-            usage()
-            return 1
-
-        # ensure anything with a path in it is expanded
-        auth = expand_path(auth)
-        userdata = expand_path(userdata)
-
-        # check we have everything we need
-        check_everything(auth, flavour, image, key, name, secgroup, userdata)
-
-        # start the process
-        secgroup = secgroup.split(',')
-        sw_start(vm_num, name, image, flavour, key, secgroup, userdata, auth)
-
-        return 0

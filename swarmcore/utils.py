@@ -5,9 +5,18 @@
 General use functions for swarm.
 """
 
+import sys
+
+
 # form of hostnames, %s are IP fields
 HostnameMask = 'vm-%s-%s-%s-%s'
 
+
+def error(msg):
+    """Print error message and quit."""
+
+    print(msg)
+    sys.exit(1)
 
 def obj_dump(obj):
     """Debug routine.  Dump attributes of an object.

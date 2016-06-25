@@ -10,7 +10,7 @@ Usage: sw_stop <options>
 where <options> is zero or more of:
     -h   --help     print this help and stop
     -p   --prefix   name prefix used to select nodes (required)
-    -s   --state    state of instanes to terminate
+    -s   --state    state of instances to terminate ('running' is assumed otherwise)
     -V   --version  print version information and stop
     -v   --verbose  be verbose (cumulative)
     -w   --wait     wait until instances actually stopped
@@ -21,9 +21,11 @@ will wait until the instances are actually gone:
 """
 
 import os
+import sys
 import getopt
 import swarmcore
 from swarmcore import log
+from swarmcore import utils
 log = log.Log('swarm.log', log.Log.DEBUG)
 
 
@@ -38,25 +40,13 @@ Plugin = {
          }
 
 
-def error(msg):
-    """Print error message and quit."""
-
-    print(msg)
-    sys.exit(1)
-
-
-def warn(msg):
-    """Print error message and continue."""
-
-    log.warn(msg)
-    print(msg)
-
-
 def usage(msg=None):
     """Print help for the befuddled user."""
 
     if msg:
-        print(msg+'\n')
+        print('*'*60)
+        print(msg)
+        print('*'*60)
     print(__doc__)        # module docstring used
 
 def stop(args, kwargs):
@@ -84,8 +74,8 @@ def stop(args, kwargs):
         (opts, args) = getopt.getopt(args, 'hp:s:Vviw',
                                      ['help', 'prefix=', 'state=',
                                       'version', 'verbose', 'wait'])
-    except getopt.error, msg:
-        usage()
+    except getopt.error, e:
+        usage(str(e.msg))
         return 1
 
     Verbose = False
@@ -96,7 +86,7 @@ def stop(args, kwargs):
 
     # now parse the options
     name_prefix = None
-    state = None
+    state = 'running'       # we assume that we only stop 'running' instances
     wait = False
     for (opt, param) in opts:
         if opt in ['-h', '--help']:
@@ -115,12 +105,14 @@ def stop(args, kwargs):
             wait = True
 
     if len(args) != 0:
-        usage()
+        usage("Don't need any params for 'stop'")
         return 1
 
-    # it's too dangerous to allow name_prefix==None to terminate all instances
-    if name_prefix is None:
-        error('You must specify an instance name prefix.')
+    # it's too dangerous to allow a global terminate of all instances
+    # use '-p ""' if you want to do this
+    if name_prefix is None and state is None:
+        usage("You must specify instance(s) to stop ('-p' and/or '-s' options).")
+        return 1
 
     # get all instances
     swm = swarmcore.Swarm(verbose=Verbose)
@@ -130,13 +122,11 @@ def stop(args, kwargs):
         log('instances=%s' % str(all_instances))
 
     # get a filtered list of instances depending on name_prefix, state, etc
-    prefix_str = '*'
+    prefix_str = '*'        # assume user wants to stop ALL instances
     filtered_instances = all_instances
-    for i in all_instances:
-        print('%s: .state=%s' % (str(i), str(i.state)))
     if name_prefix is not None:
         prefixes = name_prefix.split(',')
-        prefix_str = '*|'.join(prefixes)
+        prefix_str = '*|'.join(prefixes) + '*'
         filtered_instances = []
         for prefix in prefixes:
             f = swm.filter_name_prefix(prefix)
@@ -147,16 +137,17 @@ def stop(args, kwargs):
         print('filtered_instances=%s' % str(filtered_instances))
         log('name_prefix=%s, prefix_str=%s' % (str(name_prefix), prefix_str))
         log('filtered_instances=%s' % str(filtered_instances))
-    state_str = '*'
+
+    state_str = '*'         # assume user wants to stop all states of instances
+    state_instances = filtered_instances
     if state is not None:
         state_list = state.split(',')
         state_str = state
         state_instances = []
         for st in state_list:
-            #f = swm.filter_state(st)
-            f = swm.filter_state('xyzzy')
+            f = swm.filter_state(state)
             s = swm.filter(filtered_instances, f)
-            state_instances = swm.union(filtered_instances, s)
+            state_instances = swm.union(state_instances, s)
     filtered_instances = state_instances
     if Verbose:
         print('state=%s, state_str=%s' % (str(state), state_str))
@@ -166,12 +157,12 @@ def stop(args, kwargs):
 
     print("Stopping %d instances named '%s', state='%s'"
           % (len(filtered_instances), prefix_str, state_str))
-    log("Stopping %d instances named '%s*'"
-        % (len(filtered_instances), '*|'.join(prefixes)))
+    log("Stopping %d instances named '%s*', state='%s'"
+        % (len(filtered_instances), prefix_str, state_str))
 
     # if no filtered instances, do nothing
     if len(filtered_instances) == 0:
-        print("No instances found with prefix: '%s*'" % '*|'.join(prefixes))
+        print("No instances found with prefix=%s and state=%s" % (prefix_str, state_str))
         return 0
 
     # give user a chance to bail
@@ -192,4 +183,4 @@ def stop(args, kwargs):
         print('Stopped %d instances.' % len(filtered_instances))
 
     return 0
-
+    print(__doc__)        # module docstring used
