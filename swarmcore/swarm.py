@@ -29,10 +29,10 @@ class Swarm(object):
 
     # default attributes when starting a server
     DefaultImage = 'ami-d9d7f9ba'
-    #DefaultFlavour = 't2.nano'
-    DefaultFlavour = 't2.micro'
-    DefaultKey = 'ec2-sydney'
-    DefaultSecgroup = 'xyzzy'.split(',')
+    DefaultFlavour = 't2.nano'
+    #DefaultFlavour = 't2.micro'
+    DefaultKey = 'ec2_sydney'
+    DefaultSecgroup = 'sydney'.split(',')
 
     DefaultRegionName = 'ap-southeast-2'
     DefaultConfig = None
@@ -122,13 +122,9 @@ class Swarm(object):
         i_coll = self.ec2.instances.filter(Filters=[])
         for instance in list(i_coll):
             if instance.state['Name'] in ('pending', 'running'):
-                if instance.tags:
-                    for d in instance.tags:
-                        if 'Key' in d:
-                            val = d['Value']
-                            if val:
-                                names_already_used.append(val)
-                            break
+                name = self.get_name(instance)
+                if name:
+                    names_already_used.append(name)
         if names_already_used:
             self.log('Running instances:')
             for i in names_already_used:
@@ -152,9 +148,14 @@ class Swarm(object):
 
 
     def instances(self):
-        """Returns a list of all running instances."""
+        """Returns a list of all *running* instances."""
 
-        return sorted(list(self.ec2.instances.all()))
+        result = []
+        for instance in sorted(list(self.ec2.instances.all())):
+            if instance.state['Name'] == 'running':
+                result.append(instance)
+
+        return result
 
     def start(self, num, name, image=DefaultImage,
               flavour=DefaultFlavour, key=DefaultKey,
@@ -178,13 +179,8 @@ class Swarm(object):
         names_already_used = []
         for server in self.instances():
             if server.state['Name'] in ('pending', 'running'):
-                if server.tags:
-                    for d in server.tags:
-                        if 'Key' in d:
-                            val = d['Value']
-                            if val:
-                                names_already_used.append(val)
-                            break
+                name = self.get_name(server)
+                names_already_used.append(name)
 
         result = []
         instance_number = 0
@@ -263,6 +259,15 @@ class Swarm(object):
 
                 time.sleep(self.WaittimeStopServers)
             self.log('All instances terminated')
+
+    def get_name(self, instance):
+        """Get a running instance name from .tags."""
+
+        if instance.tags:
+            for d in instance.tags:
+                if 'Key' in d and d['Key'] == 'Name':
+                    return d['Value']
+        return None
 
 #    def refresh(self, instances):
 #        """Refresh a list of instances."""
@@ -543,7 +548,8 @@ class Swarm(object):
         """Given a instance, return name string."""
 
         def name_info(instance):
-            return instance.name
+#            return instance.name
+            return self.get_name(instance)
 
         return name_info
 
@@ -602,7 +608,8 @@ class Swarm(object):
         """Given a instance, return IP string."""
 
         def ip_info(instance):
-            return instance.networks.items()[0][1][0]
+#            return instance.networks.items()[0][1][0]
+            return instance.public_ip_address
 
         return ip_info
 
@@ -709,6 +716,7 @@ class Swarm(object):
     def guess_key(self, key):
         """Try to guess the key filename from key name."""
 
+        print('guess_key: key=%s, .ssh_dir=%s' % (key, self.ssh_dir))
         key_file = None
         for f in os.listdir(self.ssh_dir):
             path = os.path.join(self.ssh_dir, f)

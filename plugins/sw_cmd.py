@@ -18,13 +18,16 @@ where <options> is zero or more of:
 and <command> is the command string to execute on the node.
 
 An example:
-swarm_aws cmd "cat /var/spool/torque/mom_priv/config|grep \\"^\\\\\$usecp\\" | grep users"
+
+    swarm_aws cmd -v "ls -la /tmp"
 """
 
 import os
+import sys
+import getopt
 import swarmcore
 from swarmcore import log
-log = log.Log('sw_cmd.log', log.Log.DEBUG)
+log = log.Log('swarm.log', log.Log.DEBUG)
 
 
 # program version
@@ -42,7 +45,21 @@ Plugin = {
 DefaultAuthDir = os.path.expanduser('~/.ssh')
 
 
-#def plugin(auth_dir=DefaultAuthDir, name_prefix=None, show_ip=False, *args, **kwargs):
+def error(msg):
+    """Print error message and quit."""
+
+    print(msg)
+    sys.exit(1)
+
+def usage(msg=None):
+    """Print help for the befuddled user."""
+
+    if msg:
+        print('*'*60)
+        print(msg)
+        print('*'*60)
+    print(__doc__)        # module docstring used
+
 def command(args, kwargs):
     """Perform the command on required instances..
 
@@ -70,6 +87,47 @@ def command(args, kwargs):
         """Function to sort data by name (field 1)."""
 
         return key[1]
+
+    # parse the command params
+    try:
+        (opts, args) = getopt.getopt(args, 'a:hip:Vv',
+                                     ['auth=', 'help', 'ip', 'prefix=',
+                                      'version', 'verbose'])
+    except getopt.error, msg:
+        usage()
+        return 1
+    for (opt, param) in opts:
+        if opt in ['-v', '--verbose']:
+            log.bump_level()
+
+    # now parse the options
+    auth_dir = DefaultAuthDir
+    show_ip = False
+    name_prefix = None
+    for (opt, param) in opts:
+        if opt in ['-a', '--auth']:
+            auth_dir = param
+            if not os.path.isdir(auth_dir):
+                error("Authentication directory '%s' doesn't exist"
+                      % auth_dir)
+        elif opt in ['-h', '--help']:
+            usage()
+            return 0
+        elif opt in ['-i', '--ip']:
+            show_ip = True
+        elif opt in ['-p', '--prefix']:
+            name_prefix = param
+        elif opt in ['-V', '--version']:
+            print('%s %s' % (__program__, __version__))
+            return 0
+        elif opt in ['-v', '--verbose']:
+            pass        # done above
+
+    if len(args) < 1:
+        usage()
+        return 1
+
+    cmd = ' '.join(args)
 
     # get all instances
     swm = swarmcore.Swarm()
@@ -117,96 +175,3 @@ def command(args, kwargs):
             print('%-17s |%s' % (name, canonical_output))
         else:
             print('%-17s*|%s' % (name, canonical_output))
-
-
-if __name__ == '__main__':
-    import sys
-    import getopt
-    import traceback
-
-    def error(msg):
-        """Print error message and quit."""
-
-        print(msg)
-        sys.exit(1)
-
-
-    def warn(msg):
-        """Print error message and continue."""
-
-        log.warn(msg)
-        print(msg)
-
-
-    def usage(msg=None):
-        """Print help for the befuddled user."""
-
-        if msg:
-            print(msg+'\n')
-        print(__doc__)        # module docstring used
-
-
-    def main(argv=None):
-        if argv is None:
-            argv = sys.argv[1:]
-
-        try:
-            opts, args = getopt.getopt(argv, 'a:hip:Vv',
-                                       ['auth=', 'help', 'ip', 'prefix=',
-                                        'version', 'verbose'])
-        except getopt.error, msg:
-            usage()
-            return 1
-        for (opt, param) in opts:
-            if opt in ['-v', '--verbose']:
-                log.bump_level()
-
-        # now parse the options
-        auth_dir = DefaultAuthDir
-        show_ip = False
-        name_prefix = None
-        for (opt, param) in opts:
-            if opt in ['-a', '--auth']:
-                auth_dir = param
-                if not os.path.isdir(auth_dir):
-                    error("Authentication directory '%s' doesn't exist"
-                          % auth_dir)
-            elif opt in ['-h', '--help']:
-                usage()
-                return 0
-            elif opt in ['-i', '--ip']:
-                show_ip = True
-            elif opt in ['-p', '--prefix']:
-                name_prefix = param
-            elif opt in ['-V', '--version']:
-                print('%s %s' % (__program__, __version__))
-                return 0
-            elif opt in ['-v', '--verbose']:
-                pass
-#                log.bump_level()
-
-        if len(args) < 1:
-            usage()
-            return 1
-        cmd = ' '.join(args)
-
-        # do the command
-        plugin(cmd, auth_dir, name_prefix, show_ip)
-
-        return 0
-
-    # our own handler for uncaught exceptions
-    def excepthook(type, value, tb):
-        msg = '\n' + '=' * 80
-        msg += '\nUncaught exception:\n'
-        msg += ''.join(traceback.format_exception(type, value, tb))
-        msg += '=' * 80 + '\n'
-
-        print msg
-        log.critical(msg)
-        sys.exit(1)
-
-    # plug our handler into the python system
-    sys.excepthook = excepthook
-
-    sys.exit(main(sys.argv[1:]))

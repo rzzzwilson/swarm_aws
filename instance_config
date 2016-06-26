@@ -14,7 +14,7 @@ prefix = 'instance-{number:04d}'
 # the default flavor of new instance(s)
 flavour = 't2.micro'
 
-#secgroup = 'coepp'.split(',')
+secgroup = 'sydney'
 
 # default region
 region = 'ap-southeast-2'
