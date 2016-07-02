@@ -3,7 +3,7 @@
 #
 
 # name of the key used to start instances
-keypair = 'ec2-sydney'
+keypair = 'ec2_sydney'
 
 # image to start
 image = 'ami-d9d7f9ba'
@@ -14,6 +14,7 @@ prefix = 'instance-{number:04d}'
 # the default flavor of new instance(s)
 flavour = 't2.micro'
 
+# default security group(s) (may be ',' delimited)
 secgroup = 'sydney'
 
 # default region

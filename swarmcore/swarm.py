@@ -221,7 +221,8 @@ class Swarm(object):
 
         pending_instances = self.ec2.create_instances(ImageId=image,
                                                       InstanceType=flavour,
-                                                      #MinCount=1,
+                                                      KeyName=key,
+                                                      SecurityGroups=secgroup,
                                                       MinCount=num,
                                                       MaxCount=num)
 
@@ -481,7 +482,7 @@ class Swarm(object):
                '-o "CheckHostIP no" '
                '-o "PreferredAuthentications publickey" '
                '-o "StrictHostKeyChecking no" '
-               '%s root@%%s:%s' % (self.SshTimeout, src, dst))
+               '%s ec2-user@%%s:%s' % (self.SshTimeout, src, dst))
         for instance in instances:
             ip = instance.networks.items()[0][1][0]
             key_file = self.guess_key(instance.key_name)
@@ -521,13 +522,15 @@ class Swarm(object):
             """Function to perform command on instance."""
 
             key_file = self.guess_key(instance.key_name)
-            ip = instance.networks.items()[0][1][0]
+            #ip = instance.networks.items()[0][1][0]
+            ip = instance.public_ip_address
 
             ssh = ('ssh -q -i %s -o "ConnectTimeout %d" -o "BatchMode yes" '
                    '-o "CheckHostIP no" '
                    '-o "PreferredAuthentications publickey" '
                    '-o "StrictHostKeyChecking no" '
-                   'root@%s "%s" 2>&1' % (key_file, self.SshTimeout, ip, cmd))
+                   'ec2-user@%s "%s" 2>&1' % (key_file, self.SshTimeout, ip, cmd))
+            self.log.debug('SSH cmd: %s' % ssh)
             (status, output) = commands.getstatusoutput(ssh)
 
             return (status, output)
@@ -595,7 +598,7 @@ class Swarm(object):
                        '-o "CheckHostIP no" '
                        '-o "PreferredAuthentications publickey" '
                        '-o "StrictHostKeyChecking no"' % self.SshTimeout)
-            cmd = ('ssh -q -i %s %s root@%s hostname'
+            cmd = ('ssh -q -i %s %s ec2-user@%s hostname'
                    % (key_file, options, ip))
             (status, output) = commands.getstatusoutput(cmd)
 
@@ -716,7 +719,7 @@ class Swarm(object):
     def guess_key(self, key):
         """Try to guess the key filename from key name."""
 
-        print('guess_key: key=%s, .ssh_dir=%s' % (key, self.ssh_dir))
+        self.log.debug('guess_key: key=%s, .ssh_dir=%s' % (key, self.ssh_dir))
         key_file = None
         for f in os.listdir(self.ssh_dir):
             path = os.path.join(self.ssh_dir, f)
@@ -733,6 +736,8 @@ class Swarm(object):
         if key_file is None:
             msg = ("Can't find key file matching '%s'" % key)
             raise Exception(msg)
+
+        self.log.debug('guess_key: key %s -> key_file %s' % (key, str(key_file)))
 
         return key_file
 

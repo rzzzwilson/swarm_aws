@@ -58,9 +58,9 @@ DefaultRegion = 'ap-southeast-2'
 DefaultZone = 'ap-southeast-2b'
 DefaultFlavour = 't2.micro'
 DefaultImage = None
-DefaultKey = 'ec2-sydney'
+DefaultKey = 'ec2_sydney'
 DefaultNamePrefix = 'instance{number}'
-DefaultSecgroup = 'xyzzy'
+DefaultSecgroup = 'sydney'
 DefaultUserdata = None
 
 # dictionary to map config names to global names
@@ -257,17 +257,6 @@ def start(args, kwargs):
         usage('Instance number must be a non-negative integer')
         sys.exit(1)
 
-    if Verbose:
-        log.debug('sw_start: num=%d' % num)
-        log.debug('sw_start: name=%s' % name)
-        log.debug('sw_start: image=%s' % image)
-        log.debug('sw_start: flavour=%s' % flavour)
-        log.debug('sw_start: key=%s' % key)
-        log.debug('sw_start: region=%s' % region)
-        log.debug('sw_start: secgroup=%s' % str(secgroup))
-        log.debug('sw_start: userdata=%s' % str(userdata))
-        log.debug('sw_start: auth=%s' % auth)
-
     # look at prefix - if it doesn't contain '{number' add it
     prefix_name = name
     if '{number:' not in name:
@@ -276,6 +265,9 @@ def start(args, kwargs):
     if Verbose:
         log.debug('sw_start: name=%s' % name)
         log.debug('sw_start: prefix_name=%s' % prefix_name)
+
+    # prepare security group info
+    secgroup = secgroup.split(',')
 
     if Verbose:
         print('Starting %d worker nodes, prefix=%s' % (num, prefix_name))
@@ -296,6 +288,17 @@ def start(args, kwargs):
                   secgroup=secgroup, userdata=userdata_str)
     if Verbose:
         print('%d new instances running' % len(new))
+
+    if Verbose:
+        log.debug('sw_start: num=%d' % num)
+        log.debug('sw_start: name=%s' % name)
+        log.debug('sw_start: image=%s' % image)
+        log.debug('sw_start: flavour=%s' % flavour)
+        log.debug('sw_start: key=%s' % key)
+#        log.debug('sw_start: region=%s' % region)
+        log.debug('sw_start: secgroup=%s' % str(secgroup))
+        log.debug('sw_start: userdata=%s' % str(userdata))
+        log.debug('sw_start: auth=%s' % auth)
 
     if Verbose:
         print('Finished!')
