@@ -259,11 +259,14 @@ def start(args, kwargs):
 
     # look at prefix - if it doesn't contain '{number' add it
     prefix_name = name
-    if '{number:' not in name:
-        name = name + '{number:03d}'
+    if '{number' not in name:
+        if num != 1:
+            usage("Instance prefix must contain '{number...}' if number of instances > 1")
+            sys.exit(1)
 
     if Verbose:
         log.debug('sw_start: name=%s' % name)
+        log.debug('sw_start: num=%d' % num)
         log.debug('sw_start: prefix_name=%s' % prefix_name)
 
     # prepare security group info
@@ -284,6 +287,7 @@ def start(args, kwargs):
             log.debug('userdata:\n%s' % userdata_str)
 
     # start instance nodes, wait until running
+    log.debug('name=%s' % str(name))
     new = s.start(num, name, image=image, flavour=flavour, key=key,
                   secgroup=secgroup, userdata=userdata_str)
     if Verbose:

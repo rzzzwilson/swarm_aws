@@ -179,43 +179,34 @@ class Swarm(object):
         names_already_used = []
         for server in self.instances():
             if server.state['Name'] in ('pending', 'running'):
-                name = self.get_name(server)
-                names_already_used.append(name)
+                running_name = self.get_name(server)
+                names_already_used.append(running_name)
 
         result = []
         instance_number = 0
         number_names = 0
         pending_names = []
 
-        # check name not used if isn't {number} format
-        # else generate unique names
+        # generate unique instance names
         # result is 'pending_names': list of names to call new instances
-        test_name = name.format(number=1)
-        if test_name == name:
-            # new instance name isn't {number} format
-            # if name already used, bomb out
-            if name in names_already_used:
-                msg = ("New server name '%s' doesn't have '...{number}...' form "
-                       "and name is already in use" % name)
-                raise Exception(msg)
-            pending_names = [name]*num
-        else:
-            while number_names < num:
-                # look for an unused name
-                instance_number += 1
-                instance_name = name.format(number=instance_number)
-                if instance_name in names_already_used:
-                    if instance_number > 999:
-                        # runaway search
-                        msg = ("Runaway name search, instance_name=%s.\n"
-                               "Perhaps name doesn't have a {number} format and name already used?"
-                               % instance_name)
-                        raise Exception(msg)
-                    continue
-                self.log('new server name=%s' % instance_name)
-                number_names += 1
-                pending_names.append(instance_name)
-                names_already_used.append(instance_name)
+        self.log.debug('name=%s, names_already_used=%s' % (name, str(names_already_used)))
+        while number_names < num:
+            # look for an unused name
+            instance_number += 1
+            instance_name = name.format(number=instance_number)
+            self.log.debug('instance_number=%d, name=%s, instance_name=%s' % (instance_number, name, instance_name))
+            if instance_name in names_already_used:
+                if instance_number > 999:
+                    # runaway search
+                    msg = ("Runaway name search, instance_name=%s.\n"
+                           "Perhaps name doesn't have a {number} format and name already used?"
+                           % instance_name)
+                    raise Exception(msg)
+                continue
+            self.log('new server name=%s' % instance_name)
+            number_names += 1
+            pending_names.append(instance_name)
+            names_already_used.append(instance_name)
 
         self.log('pending_names=%s' % str(pending_names))
 
