@@ -307,7 +307,7 @@ class Swarm(object):
                     self.log.debug("wait_connect: server %s has no IP yet"
                                    % server.name)
                     break
-                ip = server.networks.items()[0][1][0]
+                ip = instance.public_ip_address
                 nc_cmd = cmd % ip
                 self.log.debug('wait_connect: doing: %s' % nc_cmd)
                 (status, output) = commands.getstatusoutput(nc_cmd)
@@ -475,7 +475,7 @@ class Swarm(object):
                '-o "StrictHostKeyChecking no" '
                '%s ec2-user@%%s:%s' % (self.SshTimeout, src, dst))
         for instance in instances:
-            ip = instance.networks.items()[0][1][0]
+            ip = instance.public_ip_address
             key_file = self.guess_key(instance.key_name)
             copy_cmd = cmd % (key_file, ip)
             CopyThread(instance, copy_cmd, result_queue, args).start()
@@ -513,7 +513,6 @@ class Swarm(object):
             """Function to perform command on instance."""
 
             key_file = self.guess_key(instance.key_name)
-            #ip = instance.networks.items()[0][1][0]
             ip = instance.public_ip_address
 
             ssh = ('ssh -q -i %s -o "ConnectTimeout %d" -o "BatchMode yes" '
@@ -580,7 +579,7 @@ class Swarm(object):
 
         def hostname_info(instance):
             # have to ssh to instance and run 'hostname' command
-            ip = instance.networks.items()[0][1][0]
+            ip = instance.public_ip_address
             key = instance.key_name
 
             # get path to key file - guess from key name
