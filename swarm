@@ -5,18 +5,23 @@
 This is the swarm_aws harness.  It runs a plugin and passes plugin parameters
 to it:
 
-    swarm_aws <options> cmd <cmd_options> <command>
+    swarm cmd <options> <command>
 
-where <options>     are the options for swarm_aws,
-      <cmd_options> are the 'cmd' options and
+where <options>     are the options for the 'cmd' plugin
       <command>     are the 'cmd' parameters.
+
+The 'cmd' string determines which plugin is called.
 
 An example:
 
-    swarm_aws -v cmd -i "ls -l /tmp"
+    swarm cmd -i "ls -l /tmp"
 
-This runs the command "ls -l /tmp" on all running instances.  The swarm harness
-gets the '-v' option and the 'cmd' plugin gets '-i'.
+This runs the command "ls -l /tmp" on all running instances.
+The 'cmd' plugin gets the '-i' option.
+
+There are two 'builtin' commands:
+    help  displays generic help
+    list  lists all 'cmd' commands available
 """
 
 import os

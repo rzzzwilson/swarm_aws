@@ -1,7 +1,7 @@
 Design
 ======
 
-The basic low-level code is on the **swarm_core** directory.
+The basic low-level code is on the **swarmcore** directory.
 
 The **plugins** directory holds the command plugins.
 
@@ -38,7 +38,22 @@ will contain:
 * ???
 
 
-If the function doesn't exist the file isn't a swarm_ams plugin.
+If the dictionary doesn't exist the file isn't a swarm_ams plugin.
+
+As of 3 July 2016, the **Plugin** dictionary in *sw_start.py* contains:
+
+::
+
+    # program version
+    MajorRelease = 0
+    MinorRelease = 1
+
+    Plugin = {
+              'entry': 'start',
+              'version': '%d.%d' % (MajorRelease, MinorRelease),
+              'command': 'start',
+             }
+
 
 Harness
 -------
@@ -47,4 +62,4 @@ The harness code will be called:
 
     swarm <cmd> <arg1> <arg2> ...
 
-The **<cmd>** string is supplied by the plugin.
+The **<cmd>** string determines which plugin the <arg1> ... are passed to.
