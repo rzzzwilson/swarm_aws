@@ -58,3 +58,16 @@ def ip_key(key):
 
     return result
 
+def get_instance_name(instance):
+    """Get instance name.
+
+    Return None if the instance has no name.
+    """
+
+    if instance.tags:
+        for d in instance.tags:
+            if 'Key' in d and d['Key'] == 'Name':
+                return d['Value']
+
+    return None
+

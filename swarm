@@ -49,6 +49,17 @@ DefaultAuthDir = os.path.expanduser('~/.ssh')
 DefaultPluginDir = 'plugins'
 
 
+def list_commands(cmd_list):
+    "Print available commands from a command list."""
+
+    max_len = max([len(x[0]) for x in cmd_list])
+    display_len = max_len + 2
+
+    print('Recognized commands are:')
+    for (name, version) in cmd_list:
+        name = (name + ' '*30)[:display_len]
+        print('    %sv%s' % (name, version))
+
 def get_plugin_info(plugin_dir=DefaultPluginDir):
     """Examine plugin dir for possible plugins.
 
@@ -103,41 +114,31 @@ def swarm(verbose, cmd_args):
     command = cmd_args[0].lower()
     cmd_args = cmd_args[1:]
 
-    # get plugin data
+    # get plugin data, a list of tuples: (name, version)
+    # also get a reference to the plugin dict for the command (plugin_data)
     plugin_info = get_plugin_info()
-    plugin_data = None
+    plugin_data = []
+    cmd_plugin = None
     for plugin in plugin_info:
+        plugin_data.append((plugin['command'], plugin['version']))
         if plugin['command'] == command:
-            plugin_data = plugin
+            cmd_plugin = plugin
+    builtins_data = [('list', '(builtin)'), ('help', '(builtin)')]
+    plugin_data.extend(builtins_data)
+    plugin_data = sorted(plugin_data, key=lambda x: x[0])
 
-    # handle any builtin command
-    builtins = ['help', 'list']
-    if command in builtins:
-        if command == 'list':
-            # list acceptable commands and version
-            # build list: [(name, version}, ...]
-            list_info = [('list', '(builtin)'), ('help', '(builtin)')]
-            for plugin in plugin_info:
-                list_info.append(('%s' % plugin['command'], 'v%s' % plugin['version']))
-            list_info = sorted(list_info, key=lambda x: x[0])
-            # get length of longest command
-            max_len = max([len(x[0]) for x in list_info])
-            display_len = max_len + 2
-            print('Recognized commands are:')
-            for (name, version) in list_info:
-                name = (name + ' '*30)[:display_len]
-                print('    %s%s' % (name, version))
-            return 0
-        elif command == 'help':
-            usage()
-            return 0
-        else:
-            print("Unhandled builtin command: '%s'" % command)
-            return 10
+    # handle a builtin command
+    if command == 'list':
+        # list acceptable commands and version
+        list_commands(plugin_data)
+        return 0
+    elif command == 'help':
+        usage()
+        return 0
 
-    if plugin_data is None:
-        print("Unrecognized swarm command: '%s'" % command)
-        print('Recognized commands are:\n\t%s' % ('\n\t'.join(recognized_cmds)))
+    if cmd_plugin is None:
+        print("Command '%s' is not recognised." % command)
+        list_commands(plugin_data)
         return 10
 
     # pass args to plugin code
@@ -146,7 +147,7 @@ def swarm(verbose, cmd_args):
         plugin_module = __import__('plugins', globals(), locals(), ['plugin'], -1)
     except ImportError:
         raise
-    plugin_entry = eval('plugin_module.%s.%s' % (plugin_data['module'], plugin_data['entry']))
+    plugin_entry = eval('plugin_module.%s.%s' % (cmd_plugin['module'], cmd_plugin['entry']))
     def_args = {}
     return plugin_entry(cmd_args, def_args)
 
