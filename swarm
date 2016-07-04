@@ -20,7 +20,7 @@ This runs the command "ls -l /tmp" on all running instances.
 The 'cmd' plugin gets the '-i' option.
 
 There are two 'builtin' commands:
-    help  displays generic help
+    help  displays this generic help
     list  lists all 'cmd' commands available
 """
 
@@ -50,7 +50,11 @@ DefaultPluginDir = 'plugins'
 
 
 def get_plugin_info(plugin_dir=DefaultPluginDir):
-    """Examine plugin dir for possible plugins."""
+    """Examine plugin dir for possible plugins.
+
+    Returns a list containing the 'Plugin' dictionaries from each plugin
+    module found.
+    """
 
     # look at all *.py files in the plugon dir
     plugin_path = os.path.join(plugin_dir, '*.py')
@@ -99,30 +103,30 @@ def swarm(verbose, cmd_args):
     command = cmd_args[0].lower()
     cmd_args = cmd_args[1:]
 
-    # get appropriate plugin
+    # get plugin data
     plugin_info = get_plugin_info()
     plugin_data = None
     for plugin in plugin_info:
         if plugin['command'] == command:
             plugin_data = plugin
-    # get a list of acceptable commands
-    recognized_cmds = [x['command'] for x in plugin_info]
-    # add in the builtin commands
-    builtins = ['help', 'list']
-    recognized_cmds.extend(builtins)
-    recognized_cmds = sorted(recognized_cmds)
-    if verbose:
-        log('Recognized commands:\n\t%s' % str(recognized_cmds))
 
-    # handle any builtin commands
+    # handle any builtin command
+    builtins = ['help', 'list']
     if command in builtins:
         if command == 'list':
             # list acceptable commands and version
-            list_info = ['list\t(builtin)', 'help\t(builtin)']
+            # build list: [(name, version}, ...]
+            list_info = [('list', '(builtin)'), ('help', '(builtin)')]
             for plugin in plugin_info:
-                list_info.append('%s\tv%s' % (plugin['command'], plugin['version']))
-            list_info = sorted(list_info)
-            print('Recognized commands are:\n\t%s' % ('\n\t'.join(list_info)))
+                list_info.append(('%s' % plugin['command'], 'v%s' % plugin['version']))
+            list_info = sorted(list_info, key=lambda x: x[0])
+            # get length of longest command
+            max_len = max([len(x[0]) for x in list_info])
+            display_len = max_len + 2
+            print('Recognized commands are:')
+            for (name, version) in list_info:
+                name = (name + ' '*30)[:display_len]
+                print('    %s%s' % (name, version))
             return 0
         elif command == 'help':
             usage()
