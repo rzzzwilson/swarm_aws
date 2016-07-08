@@ -183,8 +183,8 @@ class Log(object):
 
         self(msg, Log.DEBUG)
 
-    def __del__(self):
-        self.logfd.close()
+#    def __del__(self):
+#        self.logfd.close()
 
     def set_level(self, level):
         self.level = level
