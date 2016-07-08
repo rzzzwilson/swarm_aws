@@ -5,7 +5,7 @@
 This program is designed to replace an ailing instance, gathering as much
 required information from the sick instance as possible.
 
-Usage: replace <options> <ip_or_name>
+Usage: replace <options> [<name> [, <name> ...]]
 
 where <options> is zero or more of:
     -a  <auth>      set path to key directory (default ~/.ssh)
@@ -19,11 +19,14 @@ where <options> is zero or more of:
     -u  <userdata>  path to a userdata script file
     -v              become verbose (cumulative)
     -V              print version and stop
-and <ip_or_name> is either the IP address of the sick instance or its AWS
-dashboard name.
+and <name> is the sick instance AWS dashboard name.
+
+Zero or more <name> values may be specified.  If both the '-p' option and one or
+more <name>s are given the given <prefix> selects suitable instances and the
+instances in that selection with the given <name>s are replaced.
 
 The config and/or command line options are used only if information cannot be
-obtained from the running instance.
+obtained from the running instances.
 """
 
 import os
@@ -62,7 +65,7 @@ DefaultZone = 'ap-southeast-2b'
 DefaultFlavour = 't2.micro'
 DefaultImage = None
 DefaultKey = 'ec2_sydney'
-DefaultNamePrefix = 'instance{number}'
+DefaultNamePrefix = None
 DefaultSecgroup = 'sydney'
 DefaultUserdata = None
 
@@ -237,12 +240,13 @@ def replace(args, kwargs):
             # done above
             pass
 
-    if len(args) != 1:
-        usage('You must supply the IP or name of the instance to replace.')
-        return 1
-    instance_id = args[0]
+    instances = args
+    if len(args) == 0:
+        if name is None:
+            usage('You must supply name(s) of the instances to replace.')
+            return 1
 
-    log.debug('param: instance_id=%s' % instance_id)
+    log.debug('param: instances=%s' % str(instances))
     log.debug('param: name=%s' % str(name))
     log.debug('param: image=%s' % str(image))
     log.debug('param: flavour=%s' % str(flavour))
@@ -252,43 +256,61 @@ def replace(args, kwargs):
     log.debug('param: auth=%s' % str(auth))
 
     if Verbose:
-        print('Replacing instance %s' % instance_id)
+        print('Replacing instance(s) %s' % str(instances))
 
     # connect to AWS
     s = swarmcore.Swarm(auth_dir=auth, verbose=Verbose)
     all_instances = s.instances()
     print('all_instances=%s' % str(all_instances))
 
-    # now look for the instance to replace
-    replace_instance = None
-    for instance in all_instances:
-        instance_ip = instance.public_ip_address
-        instance_name = utils.get_instyance_name(instance)
+    # get list of instances satisfying 'prefix' option
+    replace_instances = all_instances
+    if name:
+        replace_instances = []
+        for instance in all_instances:
+            instance_name = utils.get_instance_name(instance)
 
-        if instance_id == instance_ip or instance_id == instance_name:
-            replace_instance = instance
-            break
-    if replace_instance is None:
-        msg = "Sorry, didn't find instance '%s' in running instances" % instance_id
+            if instance_name.startswith(name):
+                replace_instances.append(instance)
+
+    # now check if given instance names and find these in 'replace_instances'
+    if instances:
+        named_instances = []
+        for instance in replace_instances:
+            if utils.get_instance_name(instance) in instances:
+                named_instances.append(instance)
+        replace_instances = named_instances
+
+    print('replace_instances=%s' % str(replace_instances))
+
+    # check we have something to do
+    if replace_instances is None:
+        if name and instances:
+            msg = ("Sorry, didn't find any instances of '%s*' with names '%s'"
+                   % (name, str(instances)))
+        elif name:
+            msg = ("Sorry, didn't find any instances of '%s*'" % name)
+        elif instances:
+            msg = ("Sorry, didn't find any instances with names in '%s'" % str(instances))
+        else:
+            msg = "You must specify either the '-p' option, one or more names or both"
         log(msg)
         print(msg)
         sys.exit(10)
 
-    # gather what info we can from the running instance
-    new_name = replace_instance.name
-    new_flavour_id = replace_instance.flavor['id']
-    new_flavour = swm.flavour_index_to_type(new_flavour_id)
-    new_key = replace_instance.key_name
-    new_security = [d['name'] for d in replace_instance.security_groups]
-    new_image = replace_instance.image['id']
-    new_userdata = None
+    # get instance information
+#    help(replace_instances[0])
+#    print(str(replace_instances[0].describe_attribute(Attribute='instanceType')))
+#    data = replace_instances[0].describe_instances(replace_instances)
+#    print('data=%s' % str(data))
+
+    # gather what info we can from the running instances
+    running_info = []
+    data = s.describe_instances(replace_instances)
 
     # debug
-    log('new_name=%s' % str(new_name))
-    log('new_flavour=%s' % str(new_flavour))
-    log('new_key=%s' % str(new_key))
-    log('new_security=%s' % str(new_security))
-    log('new_image=%s' % str(new_image))
+    log('running_info=%s' % str(running_info))
+    log('data=%s' % str(data))
 
     # if we don't have some required information, get it from the config
     # this will probably never happen

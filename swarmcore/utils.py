@@ -71,3 +71,23 @@ def get_instance_name(instance):
 
     return None
 
+def get_instance_info(instance):
+    """Get some information about an instance.
+
+    Returns a tuple:
+
+        (name, flavour, key, security, image, userdata)
+    """
+
+    data = instance.describe_attribute(Attribute='instanceType')
+    name = data['InstanceId']
+    flavour = data['InstanceType']['Value']
+
+    data = instance.describe_attribute(Attribute='userData')
+    userdata = data['UserData'].get('Value', None)
+
+    key = None
+    security = None
+    image = None
+
+    return (name, flavour, key, security, image, userdata)

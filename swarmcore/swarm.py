@@ -896,6 +896,18 @@ class Swarm(object):
 
         return sorted(result)
 
+    def describe_instances(self, instances):
+        """ """
+
+        client = boto3.client('ec2')
+        instance_ids = [i.describe_attribute(Attribute='instanceType')['InstanceId'] for i in instances]
+        print('instance_ids=%s' % str(instance_ids))
+
+#        data = instance.describe_attribute(Attribute='instanceType')['InstanceId']
+
+        data = client.describe_instances(InstanceIds=instance_ids)
+        self.log.debug('data=%s' % str(data))
+
 if __name__ == '__main__':
     s = Swarm()
     instances = s.start(1, 'test')
