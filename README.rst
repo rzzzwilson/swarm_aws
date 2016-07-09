@@ -26,7 +26,7 @@ SSH connections.
 Directories
 -----------
 
-**swarm** - the basic core code
+**swarmcore** - the basic core code
 
 **plugins** - the command plugins for **swarm_aws**
 
