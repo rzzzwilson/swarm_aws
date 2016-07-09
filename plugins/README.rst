@@ -27,13 +27,10 @@ The entry function will have the signature:
 
 ::
 
-    def plugin(auth_dir=<default_dir>, name_prefix=None, show_ip=False, *args)
+    def plugin(args)
 
-where the **auth_dir** parameter holds the path to the authentication
-credentials, **name_prefix** holds the instance name prefix, and **show_ip**
-is True if the results are to show the instance IP.
-
-The ***args** parameter is a tuple holding the command parameters.
+where the **args** parameter holds a list of command line arguments that are
+parsed by the plugin code to find options and arguments.
 
 Caveat
 ------

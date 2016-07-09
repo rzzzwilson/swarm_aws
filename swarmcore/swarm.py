@@ -279,17 +279,19 @@ class Swarm(object):
     def wait(self, instances, state, timeout=DefaultConnectTimeout):
         """Wait until all instances have the required state.
 
-        Returns a list of refreshed server instances.
+        Returns a list of server info tuples:
+            (output, status, ip, name)
         """
 
-        self.log.info("wait: Waiting on %d instances for state 'active'"
-                      % len(instances))
+        self.log.info("wait: Waiting on %d instances for state '%s'"
+                      % (len(instances), state))
 
         # ensure all machines are ACTIVE
         self.wait_active(instances, timeout)
 
-        self.log.info("wait: Waiting on %d instances for state '%s'"
-                      % (len(instances), state))
+        self.log.info("wait: All %d instances are ACTIVE" % len(instances))
+        if state == 'active':
+            return
 
         # prepare for timeout: get start time
         start = time.time()
@@ -308,21 +310,21 @@ class Swarm(object):
             for (x, server) in enumerate(instances):
                 if len(server.networks.items()) == 0:
                     # not ready yet
-                    self.log.debug("wait_connect: server %s has no IP yet"
+                    self.log.debug("wait: server %s has no IP yet"
                                    % server.name)
                     break
                 ip = instance.public_ip_address
                 nc_cmd = cmd % ip
-                self.log.debug('wait_connect: doing: %s' % nc_cmd)
+                self.log.debug('wait: doing: %s' % nc_cmd)
                 (status, output) = commands.getstatusoutput(nc_cmd)
                 if status != 0:
-                    self.log.debug('wait_connect: server %s unable to connect'
+                    self.log.debug('wait: server %s unable to connect'
                                    % server.name)
                     break
                 else:
                     sane_instances.append(server)
                     remove_index.append(x)
-                    self.log.debug('wait_connect: server %s connected!'
+                    self.log.debug('wait: server %s connected!'
                                    % server.name)
 
             # remove instance_ids that have connected
@@ -332,21 +334,21 @@ class Swarm(object):
 
             # check for timeout
             delta = time.time() - start
-            self.log.debug('wait_connect: delta=%d, timeout=%d'
+            self.log.debug('wait: delta=%d, timeout=%d'
                            % (int(delta), timeout))
             if delta > timeout:
                 break
 
         # delete the failed instances
         if instances:
-            self.log.info('wait_connect: %d instances failed - deleting'
+            self.log.info('wait: %d instances failed - deleting'
                           % len(instances))
             self.log.critical('Would delete these instances, but chicken:\n%s'
                               % str([s.name for s in instances]))
 #            self.stop(instances)
 
         # return the connected instances
-        self.log.info('wait_connect: %d instances connected' % len(sane_instances))
+        self.log.info('wait: %d instances connected' % len(sane_instances))
         return self.refresh(sane_instances)
 
     def wait_connect(self, instances, timeout=DefaultConnectTimeout):
