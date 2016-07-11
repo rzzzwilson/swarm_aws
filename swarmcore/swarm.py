@@ -467,15 +467,16 @@ class Swarm(object):
             for instance in data['Reservations']:
                 for i in instance['Instances']:
                     state = i['State']['Name']
-                    public_ip = i['PublicIpAddress']
-                    name = ''
-                    t_list = i.get('Tags', [])
-                    for t in t_list:
-                        tag_name = t.get('Key', None)
-                        if tag_name == 'Name':
-                            name = t['Value']
+                    if 'PublicIpAddress' in i:
+                        public_ip = i['PublicIpAddress']
+                        name = ''
+                        t_list = i.get('Tags', [])
+                        for t in t_list:
+                            tag_name = t.get('Key', None)
+                            if tag_name == 'Name':
+                                name = t['Value']
 
-                    result.append((name, public_ip, state))
+                        result.append((name, public_ip, state))
 
             token = data.get('NextToken', None)
             if token is None:
