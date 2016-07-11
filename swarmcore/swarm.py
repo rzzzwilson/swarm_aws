@@ -283,24 +283,30 @@ class Swarm(object):
                 self.log.info("wait: Some instances are NOT running")
             else:
                 self.log.info("wait: All %d instances are running" % len(instances))
-        elif state == 'ssh':
+            return (status, self.get_status(instances))
+
+        if state == 'ssh':
             status = self.wait_ssh(instances, timeout)
             if status != 0:
                 self.log.info("wait: Some instances are NOT accepting SSH")
             else:
                 self.log.info("wait: All %d instances are accepting SSH" % len(instances))
-        elif state == 'terminated':
+            # get existing status tuples, replace 'whatever' with 'ssh'
+            data = self.get_status(instances)
+            new_data = [(name, ip, 'ssh') for (name, ip, _) in data]
+            return (status, new_data)
+
+        if state == 'terminated':
             status = self.wait_terminated(instances, timeout)
             if status != 0:
                 self.log.info("wait: Some instances are NOT terminated")
             else:
                 self.log.info("wait: All %d instances are terminated" % len(instances))
-        else:
-            msg = "wait: Bad wait state=%s" % state
-            self.log.critical(msg)
-            raise RuntimeError(msg)
+            return (status, self.get_status(instances))
 
-        return (status, self.get_status(instances))
+        msg = "wait: Bad wait state=%s" % state
+        self.log.critical(msg)
+        raise RuntimeError(msg)
 
     def wait_running(self, instances, timeout):
         """Wait until all instances are running.
@@ -308,7 +314,7 @@ class Swarm(object):
         instances  a list of instance objects
         timeout    timeout in seconds
 
-        Returns a status of 0 if all instances are running.
+        Returns a count of number of instances NOT running.
         """
 
         # prepare for timeout: get start time
@@ -330,6 +336,7 @@ class Swarm(object):
             check_ids = next_check
 
             # finished?
+            self.log.debug('len(check_ids)=%d' % len(check_ids))
             if len(check_ids) == 0:
                 break
 
@@ -346,7 +353,56 @@ class Swarm(object):
         return len(check_ids)
 
     def wait_ssh(self, instances, timeout):
-        return 1
+        """Wait until all instances can accept SSH connections.
+
+        instances  list of instance objects to wait on
+        timeout    timeout value if can't connect
+
+        Returns a count of instances that can't connect.
+        """
+
+        # command to try connecting with
+        cmd = '%s -z -w %d %%s 22' % (self.Cmd_nc, self.SshTimeout)
+
+        # prepare for timeout: get start time
+        start = time.time()
+
+        # wait until all all instances connect or timed out
+        while True:
+            # instances to try connecting to next time around
+            new_instances = []
+
+            # check instances can connect
+            for instance in instances:
+                ip = instance.public_ip_address
+                nc_cmd = cmd % ip
+                self.log.debug('wait_ssh: doing: %s' % nc_cmd)
+                (status, output) = commands.getstatusoutput(nc_cmd)
+                if status != 0:
+                    self.log.debug('wait_ssh: server %s unable to connect'
+                                   % instance.instance_id)
+                    new_instances.append(instance)
+                else:
+                    self.log.debug('wait_ssh: server %s connected!'
+                                   % instance.instance_id)
+
+            instances = new_instances
+
+            # finished?
+            if len(instances) == 0:
+                break
+
+            # check for timeout
+            delta = time.time() - start
+            self.log.debug('wait_connect: delta=%d, timeout=%d'
+                           % (int(delta), timeout))
+            if delta > timeout:
+                break
+
+            # wait a bit - don't flood the system
+            time.sleep(self.ConnectLoopWait)
+
+        return len(instances)
 
     def wait_terminated(self, instances, timeout):
         """Wait until all instances are terminated.
@@ -354,7 +410,7 @@ class Swarm(object):
         instances  a list of instance objects
         timeout    timeout in seconds
 
-        Returns a status of 0 if all instances are terminated.
+        Returns a count of instances that can't terminate within timeout.
         """
 
         # prepare for timeout: get start time
@@ -1117,10 +1173,3 @@ class Swarm(object):
         for instance in data['Reservations']:
             for i in instance['Instances']:
                 self.log.debug('instance %s state=%s' % (instance_id, i['State']['Name']))
-
-
-if __name__ == '__main__':
-    s = Swarm()
-    instances = s.start(1, 'test')
-    self.log.debug('instances=%s' % str(instances))
-    self.log.debug('s.instances()=%s' % str(s.instances()))
