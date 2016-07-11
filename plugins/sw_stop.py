@@ -171,7 +171,7 @@ def stop(args, kwargs):
 
     # give user a chance to bail
     if y_opt:
-        answer = 'n'
+        answer = 'y'
     else:
         answer = raw_input('Stopping %d instances.  Proceed? (y/N): '
                            % len(filtered_instances))
