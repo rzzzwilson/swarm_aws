@@ -13,12 +13,12 @@ Some small examples of current functionality.
 To stop all instances, start three new instances, copy a file to /tmp,
 list the copied files and then stop the instances::
 
-    swarm stop -p ""
+    swarm stop -p "" -y
     swarm start -c instance_config -p "example_{number}" 3
     swarm wait -p example ssh
     swarm copy -p example README.rst "/tmp"
     swarm cmd -p example "ls -lrt /tmp"
-    swarm stop -p ""
+    swarm stop -p "" -y
 
 Note: after the "swarm start" we need to wait until the instances can accept
 SSH connections.
