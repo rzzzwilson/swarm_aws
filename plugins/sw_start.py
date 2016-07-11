@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-This program is designed to start a number of new cloud Instances.
+This program is designed to start a number of new EC2 instances.
 
-Usage: sw_start <options> <number>
+Usage: swarm start <options> <number>
 
 where <options> is zero or more of:
     -a  <auth>      set path to key directory (default ~/.ssh)
@@ -39,7 +39,7 @@ import swarmcore
 from swarmcore import log
 import swarmcore.utils as utils
 
-log = log.Log('sw_start.log', log.Log.DEBUG)
+log = log.Log('swarm.log', log.Log.DEBUG)
 
 
 # program version

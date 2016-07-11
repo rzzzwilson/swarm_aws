@@ -5,7 +5,7 @@
 This program is designed to replace an ailing instance, gathering as much
 required information from the sick instance as possible.
 
-Usage: replace <options> [<name> [, <name> ...]]
+Usage: swarm replace <options> [<name> [, <name> ...]]
 
 where <options> is zero or more of:
     -a  <auth>      set path to key directory (default ~/.ssh)

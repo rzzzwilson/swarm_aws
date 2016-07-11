@@ -4,7 +4,7 @@
 """
 This plugin is used to copy a file to many instances.
 
-Usage: copy <options> <src> <dst>
+Usage: swarm copy <options> <src> <dst>
 
 where <options> is zero or more of:
     -a   --auth     directory holding authentication keys (default is ~/.ssh)

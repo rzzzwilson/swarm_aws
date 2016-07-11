@@ -6,7 +6,7 @@ This plugin is a generalization of lots of little scripts that get written
 to do something on every worker node, like check the contents of a certain
 file, check the hostname, etc.
 
-Usage: swarm_aws cmd <options> <command>
+Usage: swarm cmd <options> <command>
 
 where <options> is zero or more of:
     -a   --auth     directory holding authentication keys (default is ~/.ssh)
@@ -19,7 +19,7 @@ and <command> is the command string to execute on the node.
 
 An example:
 
-    swarm_aws cmd -v "ls -la /tmp"
+    swarm cmd -vv "ls -la /tmp"
 """
 
 import os

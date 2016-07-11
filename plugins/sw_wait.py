@@ -8,7 +8,7 @@ states we can wait for are:
     . ssh
     . terminated
 
-Usage: wait <options> <state>
+Usage: swarm wait <options> <state>
 
 where <options> is zero or more of:
     -a   --auth     directory holding authentication keys (default is ~/.ssh)
@@ -23,7 +23,7 @@ The return status is non-zero if not all instances achived the required state
 before timeout.
 
 An example:
-    wait -p test ssh
+    swarm wait -p test ssh
 this waits until all instances with names starting 'test' can accept an
 SSH connection.
 """
