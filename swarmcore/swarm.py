@@ -41,12 +41,12 @@ class Swarm(object):
     SshTimeout = 10
 
     # various timeouts, seconds
-    DefaultActiveTimeout = 10*60	# 10 minutes
-    DefaultConnectTimeout = 15*60	# 15 minutes
+    DefaultTimeout = 60
 
     # various loop times, seconds
-    ActiveLoopWait = 30
-    ConnectLoopWait = 60
+    RunningLoopWait = 10
+    ConnectLoopWait = 10
+    TerminatedLoopWait = 10
 
     # sleep time to get around 'rate limit'
     LimitRateErrors = 0.0
@@ -144,6 +144,9 @@ class Swarm(object):
         if self.verbose:
             self.log('Zones:\n%s' % str(self.zones))
 
+        # get a client object
+        self.client = boto3.client('ec2')
+
         self.log('Swarm %s initialized!' % __version__)
 
 
@@ -220,6 +223,9 @@ class Swarm(object):
         self.log('started %d instances, flavour=%s, key=%s, secgroup=%s, image=%s'
                  % (num, flavour, key, str(secgroup), image))
 
+        while True:
+            self.log_state(pending_instances[0])
+
         # wait until instances are running and then name them
         self.log('Start of Name tagging')
         if pending_instances:
@@ -261,22 +267,7 @@ class Swarm(object):
                     return d['Value']
         return None
 
-#    def refresh(self, instances):
-#        """Refresh a list of instances."""
-#
-#        result = []
-#
-#        for s in instances:
-#            try:
-#                refresh_s = s.manager.get(s.id)
-#            except exceptions.NotFound:
-#                # ignore as it's probably just a server stopping
-#                continue
-#            result.append(refresh_s)
-#
-#        return result
-
-    def wait(self, instances, state, timeout=DefaultConnectTimeout):
+    def wait(self, instances, state, timeout=DefaultTimeout):
         """Wait until all instances have the required state.
 
         Returns a list of server info tuples:
@@ -286,76 +277,157 @@ class Swarm(object):
         self.log.info("wait: Waiting on %d instances for state '%s'"
                       % (len(instances), state))
 
-        data = self.describe_instances(instances)
-        print(str(data))
-        sys.exit(1)
+        if state == 'running':
+            status = self.wait_running(instances, timeout)
+            if status != 0:
+                self.log.info("wait: Some instances are NOT running")
+            else:
+                self.log.info("wait: All %d instances are running" % len(instances))
+        elif state == 'ssh':
+            status = self.wait_ssh(instances, timeout)
+            if status != 0:
+                self.log.info("wait: Some instances are NOT accepting SSH")
+            else:
+                self.log.info("wait: All %d instances are accepting SSH" % len(instances))
+        elif state == 'terminated':
+            status = self.wait_terminated(instances, timeout)
+            if status != 0:
+                self.log.info("wait: Some instances are NOT terminated")
+            else:
+                self.log.info("wait: All %d instances are terminated" % len(instances))
+        else:
+            msg = "wait: Bad wait state=%s" % state
+            self.log.critical(msg)
+            raise RuntimeError(msg)
 
-        # ensure all machines are ACTIVE
-        self.wait_active(instances, timeout)
+        return (status, self.get_status(instances))
 
-        self.log.info("wait: All %d instances are ACTIVE" % len(instances))
-        if state == 'active':
-            return
+    def wait_running(self, instances, timeout):
+        """Wait until all instances are running.
+
+        instances  a list of instance objects
+        timeout    timeout in seconds
+
+        Returns a status of 0 if all instances are running.
+        """
 
         # prepare for timeout: get start time
         start = time.time()
 
-        # list of sane instances
-        sane_instances = []
+        # now wait until all running or timeout expired
+        check_ids = [i.instance_id for i in instances]
+        while True:
+            self.log.debug('wait_running: check_ids=%s' % str(check_ids))
+            next_check = []
+            data = self.client.describe_instances(InstanceIds=check_ids)
+            for instance in data['Reservations']:
+                for i in instance['Instances']:
+                    state = i['State']['Name']
+                    instance_id = i['InstanceId']
 
-        # wait until all all instances running or timed out
-        cmd = '%s -z -w %d %%s 22' % (self.Cmd_nc, self.SshTimeout)
-        while instances:
-            time.sleep(self.ConnectLoopWait)
+                    if state != 'running':
+                        next_check.append(instance_id)
+            check_ids = next_check
 
-            # check instances can connect
-            remove_index = []
-            instances = self.refresh(instances)     # to pick up status changes
-            for (x, server) in enumerate(instances):
-                if len(server.networks.items()) == 0:
-                    # not ready yet
-                    self.log.debug("wait: server %s has no IP yet"
-                                   % server.name)
-                    break
-                ip = instance.public_ip_address
-                nc_cmd = cmd % ip
-                self.log.debug('wait: doing: %s' % nc_cmd)
-                (status, output) = commands.getstatusoutput(nc_cmd)
-                if status != 0:
-                    self.log.debug('wait: server %s unable to connect'
-                                   % server.name)
-                    break
-                else:
-                    sane_instances.append(server)
-                    remove_index.append(x)
-                    self.log.debug('wait: server %s connected!'
-                                   % server.name)
-
-            # remove instance_ids that have connected
-            remove_index.sort(reverse=True) # remove higher numbers first
-            for i in remove_index:
-                instances.pop(i)
+            # finished?
+            if len(check_ids) == 0:
+                break
 
             # check for timeout
             delta = time.time() - start
-            self.log.debug('wait: delta=%d, timeout=%d'
-                           % (int(delta), timeout))
+            self.log.debug('wait_running: delta=%d, timeout=%d' % (int(delta), timeout))
             if delta > timeout:
                 break
 
-        # delete the failed instances
-        if instances:
-            self.log.info('wait: %d instances failed - deleting'
-                          % len(instances))
-            self.log.critical('Would delete these instances, but chicken:\n%s'
-                              % str([s.name for s in instances]))
-#            self.stop(instances)
+            # wait a bit - don't flood system
+            time.sleep(self.RunningLoopWait)
 
-        # return the connected instances
-        self.log.info('wait: %d instances connected' % len(sane_instances))
-        return self.refresh(sane_instances)
+        # return number of non-running instances
+        return len(check_ids)
 
-    def wait_connect(self, instances, timeout=DefaultConnectTimeout):
+    def wait_ssh(self, instances, timeout):
+        return 1
+
+    def wait_terminated(self, instances, timeout):
+        """Wait until all instances are terminated.
+
+        instances  a list of instance objects
+        timeout    timeout in seconds
+
+        Returns a status of 0 if all instances are terminated.
+        """
+
+        # prepare for timeout: get start time
+        start = time.time()
+
+        # now wait until all terminated or timeout expired
+        check_ids = [i.instance_id for i in instances]
+        while True:
+            self.log.debug('wait_terminated: check_ids=%s' % str(check_ids))
+            next_check = []
+            data = self.client.describe_instances(InstanceIds=check_ids)
+            for instance in data['Reservations']:
+                for i in instance['Instances']:
+                    state = i['State']['Name']
+                    instance_id = i['InstanceId']
+
+                    if state != 'terminated':
+                        next_check.append(instance_id)
+            check_ids = next_check
+
+            # finished?
+            if len(check_ids) == 0:
+                break
+
+            # check for timeout
+            delta = time.time() - start
+            self.log.debug('wait_terminated: delta=%d, timeout=%d' % (int(delta), timeout))
+            if delta > timeout:
+                break
+
+            # wait a bit = don't flood system
+            time.sleep(self.TerminatedLoopWait)
+
+        # return number of non-terminated instances
+        return len(check_ids)
+
+    def get_status(self, instances):
+        """Get general status of instances in list.
+
+        instances  list of instance objects
+
+        Returns a list of tuples: (name, ip, status)
+        """
+
+        ids = [i.instance_id for i in instances]
+
+        result = []
+        token = None
+        while True:
+            if token:
+                data = self.client.describe_instances(InstanceIds=ids, NextToken=token)
+            else:
+                data = self.client.describe_instances(InstanceIds=ids)
+            for instance in data['Reservations']:
+                for i in instance['Instances']:
+                    state = i['State']['Name']
+                    public_ip = i['PublicIpAddress']
+                    name = ''
+                    t_list = i.get('Tags', [])
+                    for t in t_list:
+                        tag_name = t.get('Key', None)
+                        if tag_name == 'Name':
+                            name = t['Value']
+
+                    result.append((name, public_ip, state))
+
+            token = data.get('NextToken', None)
+            if token is None:
+                break
+
+        return result
+
+    def wait_connect(self, instances, timeout=DefaultTimeout):
         """Wait until all instances are ACTIVE and have a connection.
 
         Returns a list of refreshed server instances.
@@ -373,10 +445,8 @@ class Swarm(object):
         sane_instances = []
 
         # wait until all all instances running or timed out
-        cmd = '%s -z -w %d %%s 22' % (self.Cmd_nc, self.SshTimeout)
+        cmd = '%s -z -w %d %%s 22' % (self.Cmd_nc, timeout)
         while instances:
-            time.sleep(self.ConnectLoopWait)
-
             # check instances can connect
             remove_index = []
             instances = self.refresh(instances)     # to pick up status changes
@@ -411,6 +481,9 @@ class Swarm(object):
                            % (int(delta), timeout))
             if delta > timeout:
                 break
+
+            # wait a bit - don't flood system
+            time.sleep(self.ConnectLoopWait)
 
         # delete the failed instances
         if instances:
@@ -975,18 +1048,76 @@ class Swarm(object):
         return sorted(result)
 
     def describe_instances(self, instances):
-        """ """
+        """Get all information describing a list of instances.
 
-        client = boto3.client('ec2')
-#        instance_ids = [i.describe_attribute(Attribute='instanceType')['InstanceId'] for i in instances]
-#        print('instance_ids=%s' % str(instance_ids))
+        Returns a list of:
+            {
+             'state': 'running',
+             'public_ip': '54.123.123.123',
+             'image_id': 'ami-......',
+             'key_name': 'ec2_sydney',
+             'security_groups': ['sydney', ...],
+             'instance_type': 't2.micro',
+             'tenancy': '...',
+             'availability_zone': 'ap-...',
+             'name': 'test1_1',
+            }
+        """
 
-#        data = instance.describe_attribute(Attribute='instanceType')['InstanceId']
+        ids = [i.instance_id for i in instances]
 
-        data = client.describe_instances(InstanceIds=instances)
-        self.log.debug('data=%s' % str(data))
+#        data = client.describe_instances(InstanceIds=ids)
+        result = []
+        token = None
+        while True:
+            if token:
+                data = self.client.describe_instances(InstanceIds=ids, NextToken=token)
+            else:
+                data = self.client.describe_instances(InstanceIds=ids)
+            for instance in data['Reservations']:
+                for i in instance['Instances']:
+                    d = {
+                         'state': i['State']['Name'],
+                         'public_ip': i['PublicIpAddress'],
+                         'image_id': i['ImageId'],
+                         'key_name': i['KeyName'],
+                         'instance_type': i['InstanceType'],
+                         'tenancy': i['Placement']['Tenancy'],
+                         'availability_zone': i['Placement']['AvailabilityZone'],
+                        }
+                    sg_list = []
+                    for sg in i['SecurityGroups']:
+                        sg_list.append(sg['GroupName'])
+                    d['security_groups'] = sg_list
 
-#        data={u'Reservations': [{u'OwnerId': '558208586350', u'ReservationId': 'r-0c985fbc493161f2c', u'Groups': [], u'Instances': [{u'Monitoring': {u'State': 'disabled'}, u'PublicDnsName': 'ec2-54-206-41-152.ap-southeast-2.compute.amazonaws.com', u'State': {u'Code': 16, u'Name': 'running'}, u'EbsOptimized': False, u'LaunchTime': datetime.datetime(2016, 7, 8, 0, 23, 55, tzinfo=tzutc()), u'PublicIpAddress': '54.206.41.152', u'PrivateIpAddress': '172.31.16.206', u'ProductCodes': [], u'VpcId': 'vpc-248aa941', u'StateTransitionReason': '', u'InstanceId': 'i-00865720a7a35a0b5', u'ImageId': 'ami-d9d7f9ba', u'PrivateDnsName': 'ip-172-31-16-206.ap-southeast-2.compute.internal', u'KeyName': 'ec2_sydney', u'SecurityGroups': [{u'GroupName': 'sydney', u'GroupId': 'sg-1dda4f79'}], u'ClientToken': '', u'SubnetId': 'subnet-bcfdedfa', u'InstanceType': 't2.micro', u'NetworkInterfaces': [{u'Status': 'in-use', u'MacAddress': '0a:10:6c:41:5b:ed', u'SourceDestCheck': True, u'VpcId': 'vpc-248aa941', u'Description': '', u'Association': {u'PublicIp': '54.206.41.152', u'PublicDnsName': 'ec2-54-206-41-152.ap-southeast-2.compute.amazonaws.com', u'IpOwnerId': 'amazon'}, u'NetworkInterfaceId': 'eni-b29d57eb', u'PrivateIpAddresses': [{u'PrivateDnsName': 'ip-172-31-16-206.ap-southeast-2.compute.internal', u'Association': {u'PublicIp': '54.206.41.152', u'PublicDnsName': 'ec2-54-206-41-152.ap-southeast-2.compute.amazonaws.com', u'IpOwnerId': 'amazon'}, u'Primary': True, u'PrivateIpAddress': '172.31.16.206'}], u'PrivateDnsName': 'ip-172-31-16-206.ap-southeast-2.compute.internal', u'Attachment': {u'Status': 'attached', u'DeviceIndex': 0, u'DeleteOnTermination': True, u'AttachmentId': 'eni-attach-2e7f9117', u'AttachTime': datetime.datetime(2016, 7, 8, 0, 23, 55, tzinfo=tzutc())}, u'Groups': [{u'GroupName': 'sydney', u'GroupId': 'sg-1dda4f79'}], u'SubnetId': 'subnet-bcfdedfa', u'OwnerId': '558208586350', u'PrivateIpAddress': '172.31.16.206'}], u'SourceDestCheck': True, u'Placement': {u'Tenancy': 'default', u'GroupName': '', u'AvailabilityZone': 'ap-southeast-2c'}, u'Hypervisor': 'xen', u'BlockDeviceMappings': [{u'DeviceName': '/dev/xvda', u'Ebs': {u'Status': 'attached', u'DeleteOnTermination': True, u'VolumeId': 'vol-15d31bce', u'AttachTime': datetime.datetime(2016, 7, 8, 0, 23, 55, tzinfo=tzutc())}}], u'Architecture': 'x86_64', u'RootDeviceType': 'ebs', u'RootDeviceName': '/dev/xvda', u'VirtualizationType': 'hvm', u'Tags': [{u'Value': 'test1_1', u'Key': 'Name'}], u'AmiLaunchIndex': 0}, {u'Monitoring': {u'State': 'disabled'}, u'PublicDnsName': 'ec2-54-206-27-140.ap-southeast-2.compute.amazonaws.com', u'State': {u'Code': 16, u'Name': 'running'}, u'EbsOptimized': False, u'LaunchTime': datetime.datetime(2016, 7, 8, 0, 23, 55, tzinfo=tzutc()), u'PublicIpAddress': '54.206.27.140', u'PrivateIpAddress': '172.31.16.207', u'ProductCodes': [], u'VpcId': 'vpc-248aa941', u'StateTransitionReason': '', u'InstanceId': 'i-01481911debabb9be', u'ImageId': 'ami-d9d7f9ba', u'PrivateDnsName': 'ip-172-31-16-207.ap-southeast-2.compute.internal', u'KeyName': 'ec2_sydney', u'SecurityGroups': [{u'GroupName': 'sydney', u'GroupId': 'sg-1dda4f79'}], u'ClientToken': '', u'SubnetId': 'subnet-bcfdedfa', u'InstanceType': 't2.micro', u'NetworkInterfaces': [{u'Status': 'in-use', u'MacAddress': '0a:d6:54:0e:74:7d', u'SourceDestCheck': True, u'VpcId': 'vpc-248aa941', u'Description': '', u'Association': {u'PublicIp': '54.206.27.140', u'PublicDnsName': 'ec2-54-206-27-140.ap-southeast-2.compute.amazonaws.com', u'IpOwnerId': 'amazon'}, u'NetworkInterfaceId': 'eni-b59d57ec', u'PrivateIpAddresses': [{u'PrivateDnsName': 'ip-172-31-16-207.ap-southeast-2.compute.internal', u'Association': {u'PublicIp': '54.206.27.140', u'PublicDnsName': 'ec2-54-206-27-140.ap-southeast-2.compute.amazonaws.com', u'IpOwnerId': 'amazon'}, u'Primary': True, u'PrivateIpAddress': '172.31.16.207'}], u'PrivateDnsName': 'ip-172-31-16-207.ap-southeast-2.compute.internal', u'Attachment': {u'Status': 'attached', u'DeviceIndex': 0, u'DeleteOnTermination': True, u'AttachmentId': 'eni-attach-2f7f9116', u'AttachTime': datetime.datetime(2016, 7, 8, 0, 23, 55, tzinfo=tzutc())}, u'Groups': [{u'GroupName': 'sydney', u'GroupId': 'sg-1dda4f79'}], u'SubnetId': 'subnet-bcfdedfa', u'OwnerId': '558208586350', u'PrivateIpAddress': '172.31.16.207'}], u'SourceDestCheck': True, u'Placement': {u'Tenancy': 'default', u'GroupName': '', u'AvailabilityZone': 'ap-southeast-2c'}, u'Hypervisor': 'xen', u'BlockDeviceMappings': [{u'DeviceName': '/dev/xvda', u'Ebs': {u'Status': 'attached', u'DeleteOnTermination': True, u'VolumeId': 'vol-5dd31b86', u'AttachTime': datetime.datetime(2016, 7, 8, 0, 23, 55, tzinfo=tzutc())}}], u'Architecture': 'x86_64', u'RootDeviceType': 'ebs', u'RootDeviceName': '/dev/xvda', u'VirtualizationType': 'hvm', u'Tags': [{u'Value': 'test1_2', u'Key': 'Name'}], u'AmiLaunchIndex': 1}]}], 'ResponseMetadata': {'HTTPStatusCode': 200, 'RequestId': '686bf490-48ae-4bf4-aafd-04a4cb34dfcb'}}
+                    name = ''
+                    t_list = i.get('Tags', [])
+                    for t in t_list:
+                        tag_name = t.get('Key', None)
+                        if tag_name == 'Name':
+                            name = t['Value']
+                    d['name'] = name
+
+                    result.append(d)
+
+            token = data.get('NextToken', None)
+            if token is None:
+                break
+
+        return result
+
+    def log_state(self, instance):
+        """Debug routine to log the state of an instance.
+
+        instance  instance to log
+        """
+
+        instance_id = instance.instance_id
+        data = self.client.describe_instances(InstanceIds=[instance_id])
+        for instance in data['Reservations']:
+            for i in instance['Instances']:
+                self.log.debug('instance %s state=%s' % (instance_id, i['State']['Name']))
+
 
 if __name__ == '__main__':
     s = Swarm()

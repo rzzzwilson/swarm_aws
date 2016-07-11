@@ -4,7 +4,7 @@
 """
 This plugin waits for the given state on the specified instances.  The
 states we can wait for are:
-    . active
+    . running
     . ssh
     . terminated
 
@@ -15,8 +15,12 @@ where <options> is zero or more of:
     -h   --help     print this help and stop
     -i   --ip       show source as IP address, not instance name
     -p   --prefix   name prefix used to select nodes (default is all servers)
+    -q   --quiet    be quiet (for scripting)
     -V   --version  print version information and stop
     -v   --verbose  be verbose (cumulative)
+
+The return status is non-zero if not all instances achived the required state
+before timeout.
 
 An example:
     wait -p test ssh
@@ -47,9 +51,9 @@ DefaultAuthDir = os.path.expanduser('~/.ssh')
 
 # legal state strings
 LegalStates = [
-               'active',    # instance is running
-               'ssh',       # instance accepts SSH connection
-               'terminate', # instance has terminated
+               'running',    # instance is running
+               'ssh',        # instance accepts SSH connection
+               'terminated', # instance has terminated
               ]
 
 
@@ -71,9 +75,9 @@ def wait(args, kwargs):
 
     # parse the command params
     try:
-        (opts, args) = getopt.getopt(args, 'a:hip:Vv',
+        (opts, args) = getopt.getopt(args, 'a:hip:qVv',
                                      ['auth=', 'help', 'ip', 'prefix=',
-                                      'version', 'verbose'])
+                                      'quiet', 'version', 'verbose'])
     except getopt.error, msg:
         usage()
         return 1
@@ -85,6 +89,7 @@ def wait(args, kwargs):
     auth_dir = DefaultAuthDir
     show_ip = False
     name_prefix = None
+    quiet = False
     for (opt, param) in opts:
         if opt in ['-a', '--auth']:
             auth_dir = param
@@ -98,6 +103,8 @@ def wait(args, kwargs):
             show_ip = True
         elif opt in ['-p', '--prefix']:
             name_prefix = param
+        elif opt in ['-q', '--quiet']:
+            quiet = True
         elif opt in ['-V', '--version']:
             print('%s %s' % (__program__, __version__))
             return 0
@@ -135,20 +142,36 @@ def wait(args, kwargs):
             s = swm.filter(all_instances, filter)
             filtered_instances = swm.union(filtered_instances, s)
 
-    print("# doing 'wait %s' on %d instances named '%s*'"
-          % (state, len(filtered_instances), '*|'.join(prefixes)))
+    if not quiet:
+        print("# doing 'wait %s' on %d instances named '%s*'"
+              % (state, len(filtered_instances), '*|'.join(prefixes)))
 
     # kick off the wait
-    answer = swm.wait(filtered_instances, state, swm.info_ip())
-
-    # sort by IP
-    answer = sorted(answer, key=ip_key)
+    # answer is a tuple (status, data)
+    # where data is a list of tuples: (name, ip, state)
+    answer = swm.wait(filtered_instances, state)
+    log.debug('swm.wait() returned: %s' % str(answer))
 
     # display results
-    for (output, status, ip) in answer:
-        output = output.split('\n')
-        canonical_output = ('\n'+' '*17+'|').join(output)
-        if status == 0:
-            print('%-17s |%s' % (ip, canonical_output))
+    (status, data) = answer
+    if not quiet:
+        if show_ip:
+            d_list = [(ip, s) for (name, ip, s) in data]
+            d_list.sort()
+            log.debug('state=%s, d_list=%s' % (s, str(d_list)))
+            for (ip, s) in d_list:
+                if state == s:
+                    print('%-17s |%s' % (ip, s))
+                else:
+                    print('%-17s*|%s' % (ip, s))
         else:
-            print('%-17s*|%s' % (ip, canonical_output))
+            d_list = [(name, s) for (name, ip, s) in data]
+            d_list.sort()
+            log.debug('state=%s, d_list=%s' % (state, str(d_list)))
+            for (name, s) in d_list:
+                if state == s:
+                    print('%-17s |%s' % (ip, s))
+                else:
+                    print('%-17s*|%s' % (ip, s))
+
+    return status
