@@ -5,7 +5,7 @@
 This program is used to stop a set of instances.
 In AWS-speak, set required instances to the 'terminated' state.
 
-Usage: sw_stop <options>
+Usage: swarm stop <options>
 
 where <options> is zero or more of:
     -h   --help     print this help and stop
@@ -14,10 +14,11 @@ where <options> is zero or more of:
     -V   --version  print version information and stop
     -v   --verbose  be verbose (cumulative)
     -w   --wait     wait until instances actually stopped
+    -y   --yes      always stop instances, don't prompt user
 
 As an example, the following will stop all instances whose name start 'cxwn' and
 will wait until the instances are actually gone:
-    sw_stop -p test -w
+    swarm stop -p test -w
 """
 
 import os
@@ -71,9 +72,9 @@ def stop(args, kwargs):
 
     # parse the command args
     try:
-        (opts, args) = getopt.getopt(args, 'hp:s:Vviw',
+        (opts, args) = getopt.getopt(args, 'hp:s:Vviwy',
                                      ['help', 'prefix=', 'state=',
-                                      'version', 'verbose', 'wait'])
+                                      'version', 'verbose', 'wait', 'yes'])
     except getopt.error, e:
         usage(str(e.msg))
         return 1
@@ -88,6 +89,7 @@ def stop(args, kwargs):
     name_prefix = None
     state = 'running'       # we assume that we only stop 'running' instances
     wait = False
+    y_opt = False
     for (opt, param) in opts:
         if opt in ['-h', '--help']:
             usage()
@@ -103,6 +105,8 @@ def stop(args, kwargs):
             pass        # done above
         elif opt in ['-w', '--wait']:
             wait = True
+        elif opt in ['-y', '--yes']:
+            y_opt = True
 
     if len(args) != 0:
         usage("Don't need any params for 'stop'")
@@ -166,9 +170,12 @@ def stop(args, kwargs):
         return 0
 
     # give user a chance to bail
-    answer = raw_input('Stopping %d instances.  Proceed? (y/N): '
-                       % len(filtered_instances))
-    answer = answer.strip().lower()
+    if y_opt:
+        answer = 'n'
+    else:
+        answer = raw_input('Stopping %d instances.  Proceed? (y/N): '
+                           % len(filtered_instances))
+        answer = answer.strip().lower()
     if len(answer) == 0 or answer[0] != 'y':
         log.info('User chose not to stop %d instances' % len(filtered_instances))
         return 0
