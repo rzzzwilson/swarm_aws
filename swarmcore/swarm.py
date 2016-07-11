@@ -223,8 +223,8 @@ class Swarm(object):
         self.log('started %d instances, flavour=%s, key=%s, secgroup=%s, image=%s'
                  % (num, flavour, key, str(secgroup), image))
 
-        while True:
-            self.log_state(pending_instances[0])
+#        while True:
+#            self.log_state(pending_instances[0])
 
         # wait until instances are running and then name them
         self.log('Start of Name tagging')
