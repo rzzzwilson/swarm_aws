@@ -218,6 +218,7 @@ class Swarm(object):
                                                       InstanceType=flavour,
                                                       KeyName=key,
                                                       SecurityGroups=secgroup,
+                                                      UserData=userdata,
                                                       MinCount=num,
                                                       MaxCount=num)
 
