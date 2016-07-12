@@ -15,10 +15,12 @@ where <options> is zero or more of:
     -i  <image>     sets image to use
     -k  <keyname>   set key to use
     -p  <prefix>    set the name prefix
+    -q              be quiet for scripting
     -s  <secgroup>  set the security group(s) (can be: 'xyzzy,default')
     -u  <userdata>  path to a userdata script file
     -v              become verbose (cumulative)
     -V              print version and stop
+    -y              answer 'y' to replace? question
 and <name> is the sick instance AWS dashboard name.
 
 Zero or more <name> values may be specified.  If both the '-p' option and one or
@@ -174,11 +176,11 @@ def replace(args, kwargs):
 
     # parse the command args
     try:
-        (opts, args) = getopt.getopt(args, 'a:c:f:hi:k:p:r:s:u:vV',
+        (opts, args) = getopt.getopt(args, 'a:c:f:hi:k:p:qr:s:u:vVy',
                                      ['auth=', 'config=', 'flavour=', 'help',
-                                      'image=', 'key=', 'prefix=', 'region=',
-                                      'secgroup=', 'userdata=', 'verbose',
-                                      'version', ])
+                                      'image=', 'key=', 'prefix=', 'quiet',
+                                      'region=', 'secgroup=', 'userdata=',
+                                      'verbose', 'version', 'yes', ])
     except getopt.error, e:
         usage(str(e.msg))
         return 1
@@ -204,9 +206,11 @@ def replace(args, kwargs):
     image = DefaultImage
     key = DefaultKey
     name = DefaultNamePrefix
+    quiet = False
     region = DefaultRegion
     secgroup = DefaultSecgroup
     userdata = DefaultUserdata
+    y_opt = False
 
     # now parse the options
     # this is the users final chance to change default values
@@ -227,6 +231,8 @@ def replace(args, kwargs):
             key = param
         elif opt in ['-p', '--prefix']:
             name = param
+        elif opt in ['-q', '--quiet']:
+            quiet = True
         elif opt in ['-r', '--region']:
             region = param
         elif opt in ['-s', '--secgroup']:
@@ -239,6 +245,8 @@ def replace(args, kwargs):
         elif opt in ['-v', '--verbose']:
             # done above
             pass
+        elif opt in ['-y', '--yes']:
+            y_opt = True
 
     instances = args
     if len(args) == 0:
@@ -255,13 +263,12 @@ def replace(args, kwargs):
     log.debug('param: userdata=%s' % str(userdata))
     log.debug('param: auth=%s' % str(auth))
 
-    if Verbose:
+    if not quiet:
         print('Replacing instance(s) %s' % str(instances))
 
     # connect to AWS
     s = swarmcore.Swarm(auth_dir=auth, verbose=Verbose)
     all_instances = s.instances()
-    print('all_instances=%s' % str(all_instances))
 
     # get list of instances satisfying 'prefix' option
     replace_instances = all_instances
@@ -280,8 +287,6 @@ def replace(args, kwargs):
             if utils.get_instance_name(instance) in instances:
                 named_instances.append(instance)
         replace_instances = named_instances
-
-    print('replace_instances=%s' % str(replace_instances))
 
     # check we have something to do
     if replace_instances is None:
@@ -338,7 +343,7 @@ def replace(args, kwargs):
 
     # stop the unsane instance, wait until its really gone
     log('Stopping instance %s' % new_name)
-    if Verbose:
+    if not quiet:
         print('Stopping instance %s' % new_name)
 
     swm.stop([replace_instance], wait=True)
@@ -352,22 +357,22 @@ def replace(args, kwargs):
         for s in all_instances:
             if s.name == new_name:
                 log('Server %s still around, sleeping...' % new_name)
-                time.sleep(1.0)
+                time.sleep(WaitForDyingServer)
                 continue
         break
     log('Server %s has really gone now' % new_name)
 
     # start replacement instance
-    if Verbose:
+    if not quiet:
         print('Starting new instance %s' % new_name)
-    log('Starting 1 instance')
+    log('Starting instance(s)')
 
     new = swm.start(1, new_name, image=new_image, flavour=new_flavour, key=new_key,
                     secgroup=new_security, userdata=new_userdata)
 
     msg = 'Server %s started, waiting for connection' % new_name
     log.debug(msg)
-    if Verbose:
+    if not quiet:
         print(msg)
 
     swm.wait_connect(new)
@@ -378,13 +383,11 @@ def replace(args, kwargs):
         print(msg)
 
     if Verbose:
-        print('Finished!')
+        log.debug('==============================================================')
+        log.debug('=========================  FINISHED  =========================')
+        log.debug('==============================================================')
 
-    log.debug('==============================================================')
-    log.debug('=========================  FINISHED  =========================')
-    log.debug('==============================================================')
-
-    return
+    return 0
 
 
 
@@ -572,8 +575,12 @@ def stop(args, kwargs):
     # stop all the instances
     swm.terminate(filtered_instances, wait)
 
-    if Verbose > 0:
+    if not quiet:
         print('Stopped %d instances.' % len(filtered_instances))
 
+    if Verbose:
+        log.debug('==============================================================')
+        log.debug('=========================  FINISHED  =========================')
+        log.debug('==============================================================')
+
     return 0
-    print(__doc__)        # module docstring used

@@ -45,7 +45,7 @@ DefaultAuthDir = os.path.expanduser('~/.ssh')
 def error(msg):
     """Print error message and quit."""
 
-    print(msg)
+    usage(msg)
     sys.exit(1)
 
 def usage(msg=None):
@@ -82,20 +82,24 @@ def copy(args, kwargs):
 
     # parse the command params
     try:
-        (opts, args) = getopt.getopt(args, 'a:hip:Vv',
+        (opts, args) = getopt.getopt(args, 'a:hip:qVv',
                                      ['auth=', 'help', 'ip', 'prefix=',
-                                      'version', 'verbose'])
+                                      'quiet', 'version', 'verbose'])
     except getopt.error, msg:
         usage()
         return 1
+
+    verbose = False
     for (opt, param) in opts:
         if opt in ['-v', '--verbose']:
             log.bump_level()
+            verbose = True
 
     # now parse the options
     auth_dir = DefaultAuthDir
     show_ip = False
     name_prefix = None
+    quiet = False
     for (opt, param) in opts:
         if opt in ['-a', '--auth']:
             auth_dir = param
@@ -109,6 +113,8 @@ def copy(args, kwargs):
             show_ip = True
         elif opt in ['-p', '--prefix']:
             name_prefix = param
+        elif opt in ['-q', '--quiet']:
+            quiet = True
         elif opt in ['-V', '--version']:
             print('%s %s' % (__program__, __version__))
             return 0
@@ -139,8 +145,9 @@ def copy(args, kwargs):
             s = swm.filter(all_instances, filter)
             filtered_instances = swm.union(filtered_instances, s)
 
-    print("# doing 'copy' on %d instances named '%s*'"
-          % (len(filtered_instances), '*|'.join(prefixes)))
+    if not quiet:
+        print("Doing 'copy' on %d instances named '%s*'"
+              % (len(filtered_instances), '*|'.join(prefixes)))
 
     # kick off the parallel copy
     answer = swm.copy(filtered_instances, src, dst, swm.info_ip())
@@ -149,10 +156,18 @@ def copy(args, kwargs):
     answer = sorted(answer, key=ip_key)
 
     # display results
-    for (output, status, ip) in answer:
-        output = output.split('\n')
-        canonical_output = ('\n'+' '*17+'|').join(output)
-        if status == 0:
-            print('%-17s |%s' % (ip, canonical_output))
-        else:
-            print('%-17s*|%s' % (ip, canonical_output))
+    if not quiet:
+        for (output, status, ip) in answer:
+            output = output.split('\n')
+            canonical_output = ('\n'+' '*17+'|').join(output)
+            if status == 0:
+                print('%-17s |%s' % (ip, canonical_output))
+            else:
+                print('%-17s*|%s' % (ip, canonical_output))
+
+    if verbose:
+        log.debug('==============================================================')
+        log.debug('=========================  FINISHED  =========================')
+        log.debug('==============================================================')
+
+    return 0

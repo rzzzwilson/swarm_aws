@@ -10,15 +10,17 @@ Usage: swarm stop <options>
 where <options> is zero or more of:
     -h   --help     print this help and stop
     -p   --prefix   name prefix used to select nodes (required)
+    -q   --quiet    be quiet for scripting
     -s   --state    state of instances to terminate ('running' is assumed otherwise)
     -V   --version  print version information and stop
     -v   --verbose  be verbose (cumulative)
     -w   --wait     wait until instances actually stopped
     -y   --yes      always stop instances, don't prompt user
 
-As an example, the following will stop all instances whose name start 'cxwn' and
-will wait until the instances are actually gone:
-    swarm stop -p test -w
+As an example, the following will stop all instances whose name starts with
+'test'.
+
+    swarm stop -p test
 """
 
 import os
@@ -72,8 +74,8 @@ def stop(args, kwargs):
 
     # parse the command args
     try:
-        (opts, args) = getopt.getopt(args, 'hp:s:Vviwy',
-                                     ['help', 'prefix=', 'state=',
+        (opts, args) = getopt.getopt(args, 'hp:qs:Vviwy',
+                                     ['help', 'prefix=', 'quiet', 'state=',
                                       'version', 'verbose', 'wait', 'yes'])
     except getopt.error, e:
         usage(str(e.msg))
@@ -87,6 +89,7 @@ def stop(args, kwargs):
 
     # now parse the options
     name_prefix = None
+    quiet = False
     state = 'running'       # we assume that we only stop 'running' instances
     wait = False
     y_opt = False
@@ -96,6 +99,8 @@ def stop(args, kwargs):
             return 0
         elif opt in ['-p', '--prefix']:
             name_prefix = param
+        elif opt in ['-q', '--quiet']:
+            quiet = True
         elif opt in ['-s', '--state']:
             state = param
         elif opt in ['-V', '--version']:
@@ -122,7 +127,6 @@ def stop(args, kwargs):
     swm = swarmcore.Swarm(verbose=Verbose)
     all_instances = swm.instances()
     if Verbose:
-        print('instances=%s' % str(all_instances))
         log('instances=%s' % str(all_instances))
 
     # get a filtered list of instances depending on name_prefix, state, etc
@@ -137,8 +141,6 @@ def stop(args, kwargs):
             s = swm.filter(all_instances, f)
             filtered_instances = swm.union(filtered_instances, s)
     if Verbose:
-        print('name_prefix=%s, prefix_str=%s' % (str(name_prefix), prefix_str))
-        print('filtered_instances=%s' % str(filtered_instances))
         log('name_prefix=%s, prefix_str=%s' % (str(name_prefix), prefix_str))
         log('filtered_instances=%s' % str(filtered_instances))
 
@@ -154,19 +156,20 @@ def stop(args, kwargs):
             state_instances = swm.union(state_instances, s)
     filtered_instances = state_instances
     if Verbose:
-        print('state=%s, state_str=%s' % (str(state), state_str))
-        print('filtered_instances=%s' % str(filtered_instances))
         log('state=%s, state_str=%s' % (str(state), state_str))
         log('filtered_instances=%s' % str(filtered_instances))
 
-    print("Stopping %d instances named '%s', state='%s'"
-          % (len(filtered_instances), prefix_str, state_str))
+    if not quiet:
+        print("Stopping %d instances named '%s', state='%s'"
+              % (len(filtered_instances), prefix_str, state_str))
     log("Stopping %d instances named '%s*', state='%s'"
         % (len(filtered_instances), prefix_str, state_str))
 
     # if no filtered instances, do nothing
     if len(filtered_instances) == 0:
-        print("No instances found with prefix=%s and state=%s" % (prefix_str, state_str))
+        if not quiet:
+            print("No instances found with prefix=%s and state=%s"
+                  % (prefix_str, state_str))
         return 0
 
     # give user a chance to bail
@@ -186,8 +189,12 @@ def stop(args, kwargs):
     # stop all the instances
     swm.terminate(filtered_instances, wait)
 
-    if Verbose > 0:
+    if not quiet:
         print('Stopped %d instances.' % len(filtered_instances))
 
+    if Verbose:
+        log.debug('==============================================================')
+        log.debug('=========================  FINISHED  =========================')
+        log.debug('==============================================================')
+
     return 0
-    print(__doc__)        # module docstring used

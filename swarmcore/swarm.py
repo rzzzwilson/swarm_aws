@@ -161,13 +161,14 @@ class Swarm(object):
         return result
 
     def start(self, num, name, image=DefaultImage,
-              flavour=DefaultFlavour, key=DefaultKey,
+              region=DefaultRegionName, flavour=DefaultFlavour, key=DefaultKey,
               secgroup=DefaultSecgroup, userdata=None):
         """Start 'num' instances, return list of new instances.
 
         num       number of instances to start
         name      name of server, may contain {number} formatting
         image     image ID or name
+        region    the region to use
         flavour   flavour of the server to start
         key       the key pair name
         secgroup  the security group(s) to use, list of strings

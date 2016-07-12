@@ -14,10 +14,11 @@ where <options> is zero or more of:
     -i  <image>     sets image to use
     -k  <keyname>   set key to use
     -p  <prefix>    set the name prefix
+    -q              be quiet, for scripting
     -r  <region>    set the instance region
     -s  <secgroup>  set the security group(s) (can be: 'xyzzy,default')
     -u  <userdata>  path to a userdata script file
-    -v              become verbose (cumulative)
+    -v              verbose debug logging
     -V              print version and stop
 and <number> is the number of additional instances to start.
 This program only adds new Instances.
@@ -179,11 +180,11 @@ def start(args, kwargs):
 
     # parse the command args
     try:
-        (opts, args) = getopt.getopt(args, 'a:c:f:hi:k:p:r:s:u:vV',
+        (opts, args) = getopt.getopt(args, 'a:c:f:hi:k:p:qr:s:u:vV',
                                      ['auth=', 'config=', 'flavour=', 'help',
-                                      'image=', 'key=', 'prefix=', 'region=',
-                                      'secgroup=', 'userdata=', 'verbose',
-                                      'version', ])
+                                      'image=', 'key=', 'prefix=', 'quiet',
+                                      'region=', 'secgroup=', 'userdata=',
+                                      'verbose', 'version', ])
     except getopt.error, e:
         usage(str(e.msg))
         return 1
@@ -209,6 +210,7 @@ def start(args, kwargs):
     image = DefaultImage
     key = DefaultKey
     name = DefaultNamePrefix
+    quiet = False
     region = DefaultRegion
     secgroup = DefaultSecgroup
     userdata = DefaultUserdata
@@ -232,6 +234,8 @@ def start(args, kwargs):
             key = param
         elif opt in ['-p', '--prefix']:
             name = param
+        elif opt in ['-q', '--quiet']:
+            quiet = True
         elif opt in ['-r', '--region']:
             region = param
         elif opt in ['-s', '--secgroup']:
@@ -272,7 +276,7 @@ def start(args, kwargs):
     # prepare security group info
     secgroup = secgroup.split(',')
 
-    if Verbose:
+    if not quiet:
         print('Starting %d worker nodes, prefix=%s' % (num, prefix_name))
 
     # connect to AWS
@@ -288,9 +292,9 @@ def start(args, kwargs):
 
     # start instance nodes, wait until running
     log.debug('name=%s' % str(name))
-    new = s.start(num, name, image=image, flavour=flavour, key=key,
-                  secgroup=secgroup, userdata=userdata_str)
-    if Verbose:
+    new = s.start(num, name, image=image, region=region, flavour=flavour,
+                  key=key, secgroup=secgroup, userdata=userdata_str)
+    if not quiet:
         print('%d new instances running' % len(new))
 
     if Verbose:
@@ -299,13 +303,14 @@ def start(args, kwargs):
         log.debug('sw_start: image=%s' % image)
         log.debug('sw_start: flavour=%s' % flavour)
         log.debug('sw_start: key=%s' % key)
-#        log.debug('sw_start: region=%s' % region)
+        log.debug('sw_start: region=%s' % region)
         log.debug('sw_start: secgroup=%s' % str(secgroup))
         log.debug('sw_start: userdata=%s' % str(userdata))
         log.debug('sw_start: auth=%s' % auth)
 
     if Verbose:
-        print('Finished!')
-    log.debug('==============================================================')
-    log.debug('=========================  FINISHED  =========================')
-    log.debug('==============================================================')
+        log.debug('==============================================================')
+        log.debug('=========================  FINISHED  =========================')
+        log.debug('==============================================================')
+
+    return 0

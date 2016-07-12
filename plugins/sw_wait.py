@@ -143,7 +143,7 @@ def wait(args, kwargs):
             filtered_instances = swm.union(filtered_instances, s)
 
     if not quiet:
-        print("# doing 'wait %s' on %d instances named '%s*'"
+        print("Doing 'wait %s' on %d instances named '%s*'"
               % (state, len(filtered_instances), '*|'.join(prefixes)))
 
     # kick off the wait
