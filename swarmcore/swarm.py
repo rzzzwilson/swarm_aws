@@ -1124,7 +1124,6 @@ class Swarm(object):
 
         ids = [i.instance_id for i in instances]
 
-#        data = client.describe_instances(InstanceIds=ids)
         result = []
         token = None
         while True:
