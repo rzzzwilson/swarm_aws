@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-This program is designed to replace an ailing instance, gathering as much
-required information from the sick instance as possible.
+This program is designed to replace an ailing instance or instances, gathering
+as much required information from the sick instance as possible.
 
 Usage: swarm replace <options> [<name> [, <name> ...]]
 
@@ -27,8 +27,7 @@ Zero or more <name> values may be specified.  If both the '-p' option and one or
 more <name>s are given the given <prefix> selects suitable instances and the
 instances in that selection with the given <name>s are replaced.
 
-The config and/or command line options are used only if information cannot be
-obtained from the running instances.
+The command line options override information from the running instance(s).
 """
 
 import os
@@ -201,15 +200,15 @@ def replace(args, kwargs):
         load_config(config)
 
     # set variables to possibly modified defaults
-    auth = DefaultAuthPath
-    flavour = DefaultFlavour
-    image = DefaultImage
-    key = DefaultKey
-    name = DefaultNamePrefix
+    auth = None
+    flavour = None
+    image = None
+    key = None
+    prefix = None
     quiet = False
-    region = DefaultRegion
-    secgroup = DefaultSecgroup
-    userdata = DefaultUserdata
+    region = None
+    secgroup = None
+    userdata = None
     y_opt = False
 
     # now parse the options
@@ -230,7 +229,7 @@ def replace(args, kwargs):
         elif opt in ['-k', '--key']:
             key = param
         elif opt in ['-p', '--prefix']:
-            name = param
+            prefix = param
         elif opt in ['-q', '--quiet']:
             quiet = True
         elif opt in ['-r', '--region']:
@@ -250,12 +249,12 @@ def replace(args, kwargs):
 
     instances = args
     if len(args) == 0:
-        if name is None:
+        if prefix is None:
             usage('You must supply name(s) of the instances to replace.')
             return 1
 
     log.debug('param: instances=%s' % str(instances))
-    log.debug('param: name=%s' % str(name))
+    log.debug('param: prefix=%s' % str(prefix))
     log.debug('param: image=%s' % str(image))
     log.debug('param: flavour=%s' % str(flavour))
     log.debug('param: key=%s' % str(key))
@@ -263,8 +262,8 @@ def replace(args, kwargs):
     log.debug('param: userdata=%s' % str(userdata))
     log.debug('param: auth=%s' % str(auth))
 
-    if not quiet:
-        print('Replacing instance(s) %s' % str(instances))
+#    if not quiet:
+#        print('Replacing instance(s) %s' % str(instances))
 
     # connect to AWS
     s = swarmcore.Swarm(auth_dir=auth, verbose=Verbose)
@@ -272,12 +271,12 @@ def replace(args, kwargs):
 
     # get list of instances satisfying 'prefix' option
     replace_instances = all_instances
-    if name:
+    if prefix:
         replace_instances = []
         for instance in all_instances:
             instance_name = utils.get_instance_name(instance)
 
-            if instance_name.startswith(name):
+            if instance_name.startswith(prefix):
                 replace_instances.append(instance)
 
     # now check if given instance names and find these in 'replace_instances'
@@ -289,11 +288,11 @@ def replace(args, kwargs):
         replace_instances = named_instances
 
     # check we have something to do
-    if replace_instances is None:
-        if name and instances:
+    if not replace_instances:
+        if prefix and instances:
             msg = ("Sorry, didn't find any instances of '%s*' with names '%s'"
                    % (name, str(instances)))
-        elif name:
+        elif prefix:
             msg = ("Sorry, didn't find any instances of '%s*'" % name)
         elif instances:
             msg = ("Sorry, didn't find any instances with names in '%s'" % str(instances))
@@ -303,280 +302,82 @@ def replace(args, kwargs):
         print(msg)
         sys.exit(10)
 
-    # get instance information
-#    help(replace_instances[0])
-#    print(str(replace_instances[0].describe_attribute(Attribute='instanceType')))
-#    data = replace_instances[0].describe_instances(replace_instances)
-#    print('data=%s' % str(data))
-
     # gather what info we can from the running instances
-    running_info = []
     data = s.describe_instances(replace_instances)
 
     # debug
-    log('running_info=%s' % str(running_info))
     log('data=%s' % str(data))
 
-    # if we don't have some required information, get it from the config
-    # this will probably never happen
-    msg = []
-    if not new_name:
-        new_name = name
-        msg.append('Getting instance name from parameters: %s' % new_name)
-    if not new_image:
-        new_image = image
-        msg.append('Getting instance image from parameters: %s' % new_image)
-    if not new_flavour:
-        new_flavour = flavour
-        msg.append('Getting instance flavour from parameters: %s' % new_flavour)
-    if not new_key:
-        new_key = key
-        msg.append('Getting instance key from parameters: %s' % new_key)
-    if not new_security:
-        new_security = secgroup
-        msg.append('Getting instance security from parameters: %s' % new_security)
-    if not new_userdata:
-        new_userdata = userdata
-        msg.append('Getting instance userdata from parameters: %s' % new_userdata)
-    if msg:
-        log("Couldn't get some data from running instance:\n%s" % '\n'.join(msg))
+    # replace instance info with data from parameters, this should be infrequent
+    for info in data:
+#        if auth:
+#            info['auth'] = auth
+        if flavour:
+            info['instance_type'] = flavour
+        if image:
+            info['image_id'] = image
+        if key:
+            info['key_name'] = key
+        if region:
+            info['availability_zone'] = region
+        if secgroup:
+            info['security_groups'] = secgroup.split(',')
+            print("secgroup.split(',')=%s" % str(secgroup.split(',')))
+#        if userdata:
+#            info['userdata'] = userdata
 
-    # stop the unsane instance, wait until its really gone
-    log('Stopping instance %s' % new_name)
+    log.debug('After replace, data=%s' % str(data))
+
+    # stop the current instances, wait until really gone
+    log.debug('Stopping %d instances %s'
+              % (len(replace_instances), ', '.join([x['name'] for x in data])))
     if not quiet:
-        print('Stopping instance %s' % new_name)
+        print('Stopping %d instances %s'
+              % (len(replace_instances), ', '.join([x['name'] for x in data])))
 
-    swm.stop([replace_instance], wait=True)
+    s.terminate(replace_instances, wait=True)
 
-    log('Server %s stopped' % new_name)
+    log('%d instances stopped' % len(replace_instances))
 
     # we must be *absolutely sure* that the instance we just terminated has gone
-    log('Ensuring instance %s has really been terminated...' % new_name)
+    log('Ensuring %d instances have really been terminated...' % len(replace_instances))
+    old_names = [info['name'] for info in data]
     while True:
-        all_instances = swm.instances()
+        all_instances = s.instances()
+        log('all_instances=%s' % str(all_instances))
+        none_left = True
         for s in all_instances:
-            if s.name == new_name:
+            if s.name in old_names:
                 log('Server %s still around, sleeping...' % new_name)
                 time.sleep(WaitForDyingServer)
-                continue
+                none_left = False
         break
-    log('Server %s has really gone now' % new_name)
+    log('%d instances have really gone now' % len(replace_instances))
 
     # start replacement instance
     if not quiet:
-        print('Starting new instance %s' % new_name)
-    log('Starting instance(s)')
+        print('Starting %d new instances' % len(replace_instances))
+    log.debug('Starting %d new instances' % len(replace_instances))
 
-    new = swm.start(1, new_name, image=new_image, flavour=new_flavour, key=new_key,
-                    secgroup=new_security, userdata=new_userdata)
+    new_instances = []
+    for info in data:
+        new_image = info['image_id']
+        new_key = info['key_name']
+        new_security = info['security_groups']
+        new_flavour = info['instance_type']
+        new_userdata = ''
+#        'tenancy': '...',
+#        'availability_zone': 'ap-...',
+        new_name = info['name']
+        new_instance = s.start(1, new_name, image=new_image, flavour=new_flavour,
+                               key=new_key, secgroup=new_security,
+                               userdata=new_userdata)
+        new_instances.append(new_instance)
 
-    msg = 'Server %s started, waiting for connection' % new_name
+    msg = '%d instances started' % len(new_instances)
     log.debug(msg)
     if not quiet:
         print(msg)
-
-    swm.wait_connect(new)
-
-    msg = 'New instance %s now connected' % new_name
-    log.debug(msg)
-    if Verbose:
-        print(msg)
-
-    if Verbose:
-        log.debug('==============================================================')
-        log.debug('=========================  FINISHED  =========================')
-        log.debug('==============================================================')
-
-    return 0
-
-
-
-
-
-
-
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-"""
-This program is used to stop a set of instances.
-In AWS-speak, set required instances to the 'terminated' state.
-
-Usage: sw_stop <options>
-
-where <options> is zero or more of:
-    -h   --help     print this help and stop
-    -p   --prefix   name prefix used to select nodes (required)
-    -s   --state    state of instances to terminate ('running' is assumed otherwise)
-    -V   --version  print version information and stop
-    -v   --verbose  be verbose (cumulative)
-    -w   --wait     wait until instances actually stopped
-
-As an example, the following will stop all instances whose name start 'cxwn' and
-will wait until the instances are actually gone:
-    sw_stop -p test -w
-"""
-
-import os
-import sys
-import getopt
-import swarmcore
-from swarmcore import log
-from swarmcore import utils
-log = log.Log('swarm.log', log.Log.DEBUG)
-
-
-# program version
-MajorRelease = 0
-MinorRelease = 1
-
-Plugin = {
-          'entry': 'replace',
-          'version': '%d.%d' % (MajorRelease, MinorRelease),
-          'command': 'replace',
-         }
-
-
-def usage(msg=None):
-    """Print help for the befuddled user."""
-
-    if msg:
-        print('*'*60)
-        print(msg)
-        print('*'*60)
-    print(__doc__)        # module docstring used
-
-def stop(args, kwargs):
-    """Stop a set of instances.
-
-    args    list of arg values to be parsed
-    kwargs  a dict of default values
-
-    Values potentially parsed from 'args' or found in 'kwargs':
-        num       number of instance to start
-        name      instance name prefix
-        image     image for instance
-        flavour   flavour of instance
-        key       key for instance
-        secgroup  security group(s)
-        state     state of selected instances
-        userdata  instance startup script path
-        auth      path to auth directory
-    """
-
-    global Verbose
-
-    # parse the command args
-    try:
-        (opts, args) = getopt.getopt(args, 'hp:s:Vviw',
-                                     ['help', 'prefix=', 'state=',
-                                      'version', 'verbose', 'wait'])
-    except getopt.error, e:
-        usage(str(e.msg))
-        return 1
-
-    Verbose = False
-    for (opt, param) in opts:
-        if opt in ['-v', '--verbose']:
-            Verbose = True
-            log.bump_level()
-
-    # now parse the options
-    name_prefix = None
-    state = 'running'       # we assume that we only stop 'running' instances
-    wait = False
-    for (opt, param) in opts:
-        if opt in ['-h', '--help']:
-            usage()
-            return 0
-        elif opt in ['-p', '--prefix']:
-            name_prefix = param
-        elif opt in ['-s', '--state']:
-            state = param
-        elif opt in ['-V', '--version']:
-            print('%s v%s' % (Plugin['command'], Plugin['version']))
-            return 0
-        elif opt in ['-v', '--verbose']:
-            pass        # done above
-        elif opt in ['-w', '--wait']:
-            wait = True
-
-    if len(args) != 0:
-        usage("Don't need any params for 'stop'")
-        return 1
-
-    # it's too dangerous to allow a global terminate of all instances
-    # use '-p ""' if you want to do this
-    if name_prefix is None and state is None:
-        usage("You must specify instance(s) to stop ('-p' and/or '-s' options).")
-        return 1
-
-    # get all instances
-    swm = swarmcore.Swarm(verbose=Verbose)
-    all_instances = swm.instances()
-    if Verbose:
-        log('instances=%s' % str(all_instances))
-
-    # get a filtered list of instances depending on name_prefix, state, etc
-    prefix_str = '*'        # assume user wants to stop ALL instances
-    filtered_instances = all_instances
-    if name_prefix is not None:
-        prefixes = name_prefix.split(',')
-        prefix_str = '*|'.join(prefixes) + '*'
-        filtered_instances = []
-        for prefix in prefixes:
-            f = swm.filter_name_prefix(prefix)
-            s = swm.filter(all_instances, f)
-            filtered_instances = swm.union(filtered_instances, s)
-    if Verbose:
-        print('name_prefix=%s, prefix_str=%s' % (str(name_prefix), prefix_str))
-        print('filtered_instances=%s' % str(filtered_instances))
-        log('name_prefix=%s, prefix_str=%s' % (str(name_prefix), prefix_str))
-        log('filtered_instances=%s' % str(filtered_instances))
-
-    state_str = '*'         # assume user wants to stop all states of instances
-    state_instances = filtered_instances
-    if state is not None:
-        state_list = state.split(',')
-        state_str = state
-        state_instances = []
-        for st in state_list:
-            f = swm.filter_state(state)
-            s = swm.filter(filtered_instances, f)
-            state_instances = swm.union(state_instances, s)
-    filtered_instances = state_instances
-    if Verbose:
-        print('state=%s, state_str=%s' % (str(state), state_str))
-        print('filtered_instances=%s' % str(filtered_instances))
-        log('state=%s, state_str=%s' % (str(state), state_str))
-        log('filtered_instances=%s' % str(filtered_instances))
-
-    print("Stopping %d instances named '%s', state='%s'"
-          % (len(filtered_instances), prefix_str, state_str))
-    log("Stopping %d instances named '%s*', state='%s'"
-        % (len(filtered_instances), prefix_str, state_str))
-
-    # if no filtered instances, do nothing
-    if len(filtered_instances) == 0:
-        print("No instances found with prefix=%s and state=%s" % (prefix_str, state_str))
-        return 0
-
-    # give user a chance to bail
-    answer = raw_input('Stopping %d instances.  Proceed? (y/N): '
-                       % len(filtered_instances))
-    answer = answer.strip().lower()
-    if len(answer) == 0 or answer[0] != 'y':
-        log.info('User chose not to stop %d instances' % len(filtered_instances))
-        return 0
-
-    log.info('User elected to terminate %d instances:\n%s'
-             % (len(filtered_instances), str(filtered_instances)))
-
-    # stop all the instances
-    swm.terminate(filtered_instances, wait)
-
-    if not quiet:
-        print('Stopped %d instances.' % len(filtered_instances))
 
     if Verbose:
         log.debug('==============================================================')
