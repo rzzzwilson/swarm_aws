@@ -38,7 +38,7 @@ MinorRelease = 1
 # plugin info
 Plugin = {
           'entry': 'command',
-          'version': '%d.%d' % (MajorRelease, MinorRelease),
+          'version': 'v%d.%d' % (MajorRelease, MinorRelease),
           'command': 'cmd',
          }
 

@@ -49,7 +49,7 @@ MinorRelease = 1
 
 Plugin = {
           'entry': 'start',
-          'version': '%d.%d' % (MajorRelease, MinorRelease),
+          'version': 'v%d.%d' % (MajorRelease, MinorRelease),
           'command': 'start',
          }
 

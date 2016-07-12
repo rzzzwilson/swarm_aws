@@ -38,7 +38,7 @@ MinorRelease = 1
 
 Plugin = {
           'entry': 'stop',
-          'version': '%d.%d' % (MajorRelease, MinorRelease),
+          'version': 'v%d.%d' % (MajorRelease, MinorRelease),
           'command': 'stop',
          }
 

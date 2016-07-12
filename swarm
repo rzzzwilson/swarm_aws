@@ -55,10 +55,11 @@ def list_commands(cmd_list):
     max_len = max([len(x[0]) for x in cmd_list])
     display_len = max_len + 2
 
+    print('%s v%s' % (_Name, __version__))
     print('Recognized commands are:')
     for (name, version) in cmd_list:
         name = (name + ' '*30)[:display_len]
-        print('    %sv%s' % (name, version))
+        print('    %s%s' % (name, version))
 
 def get_plugin_info(plugin_dir=DefaultPluginDir):
     """Examine plugin dir for possible plugins.
@@ -123,7 +124,7 @@ def swarm(verbose, cmd_args):
         plugin_data.append((plugin['command'], plugin['version']))
         if plugin['command'] == command:
             cmd_plugin = plugin
-    builtins_data = [('list', '(builtin)'), ('help', '(builtin)')]
+    builtins_data = [('list', 'builtin'), ('help', 'builtin')]
     plugin_data.extend(builtins_data)
     plugin_data = sorted(plugin_data, key=lambda x: x[0])
 
@@ -170,6 +171,7 @@ def usage(msg=None):
 
     if msg:
         print(msg+'\n')
+    print('%s v%s' % (_Name, __version__))
     print(__doc__)        # module docstring used
 
 

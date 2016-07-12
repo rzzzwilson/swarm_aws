@@ -52,7 +52,7 @@ MinorRelease = 1
 
 Plugin = {
           'entry': 'replace',
-          'version': '%d.%d' % (MajorRelease, MinorRelease),
+          'version': 'v%d.%d' % (MajorRelease, MinorRelease),
           'command': 'replace',
          }
 

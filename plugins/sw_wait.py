@@ -42,7 +42,7 @@ MinorRelease = 1
 
 Plugin = {
           'entry': 'wait',
-          'version': '%d.%d' % (MajorRelease, MinorRelease),
+          'version': 'v%d.%d' % (MajorRelease, MinorRelease),
           'command': 'wait',
          }
 
