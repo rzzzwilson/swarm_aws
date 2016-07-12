@@ -290,6 +290,9 @@ def start(args, kwargs):
         if Verbose:
             log.debug('userdata:\n%s' % userdata_str)
 
+    userdata_str = """userdata_str
+touch /tmp/xyzzy"""
+
     # start instance nodes, wait until running
     log.debug('name=%s' % str(name))
     new = s.start(num, name, image=image, region=region, flavour=flavour,
