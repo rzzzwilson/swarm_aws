@@ -179,6 +179,9 @@ class Swarm(object):
                  % (num, name, flavour, key, str(secgroup)))
         self.log('                     image=%s' % image)
 
+        if userdata is None:
+            userdata = ''
+
         # get list of server names already in use
         names_already_used = []
         for server in self.instances():
