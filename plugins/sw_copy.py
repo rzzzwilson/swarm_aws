@@ -131,7 +131,7 @@ def copy(args, kwargs):
               % (auth_dir, str(show_ip), str(name_prefix)))
 
     # get all instances
-    swm = swarmcore.Swarm()
+    swm = swarmcore.Swarm(verbose=verbose)
     all_instances = swm.instances()
 
     # get a filtered list of instances depending on name_prefix

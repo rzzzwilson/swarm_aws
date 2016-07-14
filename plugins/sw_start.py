@@ -20,6 +20,7 @@ where <options> is zero or more of:
     -u  <userdata>  path to a userdata script file
     -v              verbose debug logging
     -V              print version and stop
+    -z  <zone>      set the availability zone to use
 and <number> is the number of additional instances to start.
 This program only adds new Instances.
 
@@ -56,7 +57,7 @@ Plugin = {
 # default instance  values
 DefaultAuthPath = os.path.expanduser('~/.ssh')
 DefaultRegion = 'ap-southeast-2'
-DefaultZone = 'ap-southeast-2b'
+DefaultZone = 'ap-southeast-2a'
 DefaultFlavour = 't2.micro'
 DefaultImage = None
 DefaultKey = 'ec2_sydney'
@@ -180,11 +181,11 @@ def start(args, kwargs):
 
     # parse the command args
     try:
-        (opts, args) = getopt.getopt(args, 'a:c:f:hi:k:p:qr:s:u:vV',
+        (opts, args) = getopt.getopt(args, 'a:c:f:hi:k:p:qr:s:u:vVz:',
                                      ['auth=', 'config=', 'flavour=', 'help',
                                       'image=', 'key=', 'prefix=', 'quiet',
                                       'region=', 'secgroup=', 'userdata=',
-                                      'verbose', 'version', ])
+                                      'verbose', 'version', 'zone=', ])
     except getopt.error, e:
         usage(str(e.msg))
         return 1
@@ -212,6 +213,7 @@ def start(args, kwargs):
     name = DefaultNamePrefix
     quiet = False
     region = DefaultRegion
+    zone = DefaultZone
     secgroup = DefaultSecgroup
     userdata = DefaultUserdata
 
@@ -248,6 +250,8 @@ def start(args, kwargs):
         elif opt in ['-v', '--verbose']:
             # done above
             pass
+        elif opt in ['-z', '--zone']:
+            zone = param
 
     if len(args) != 1:
         usage('You must supply the number of instances to start.')
@@ -292,8 +296,9 @@ def start(args, kwargs):
 
     # start instance nodes, wait until running
     log.debug('name=%s' % str(name))
-    new = s.start(num, name, image=image, region=region, flavour=flavour,
-                  key=key, secgroup=secgroup, userdata=userdata_str)
+    new = s.start(num, name, image=image, region=region, zone=zone,
+                  flavour=flavour, key=key, secgroup=secgroup,
+                  userdata=userdata_str)
     if not quiet:
         print('%d new instances running' % len(new))
 
@@ -304,6 +309,7 @@ def start(args, kwargs):
         log.debug('sw_start: flavour=%s' % flavour)
         log.debug('sw_start: key=%s' % key)
         log.debug('sw_start: region=%s' % region)
+        log.debug('sw_start: zone=%s' % zone)
         log.debug('sw_start: secgroup=%s' % str(secgroup))
         log.debug('sw_start: userdata=%s' % str(userdata))
         log.debug('sw_start: userdata_str=\n%s' % str(userdata_str))

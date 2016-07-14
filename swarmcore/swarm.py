@@ -35,6 +35,7 @@ class Swarm(object):
     DefaultSecgroup = 'sydney'.split(',')
 
     DefaultRegionName = 'ap-southeast-2'
+    DefaultZoneName = 'ap-southeast-2c'
     DefaultConfig = None
 
     # SSH timeout, seconds
@@ -89,13 +90,19 @@ class Swarm(object):
 
         self.region_name = region_name
         self.verbose = verbose
-        self.log('self.verbose=%s' % str(self.verbose))
+        if verbose:
+            self.log.debug('self.verbose=%s' % str(self.verbose))
 
         # override config stuff from the environment if not given
         access_key_id = self._check_env(access_key_id, 'AWS_ACCESS_KEY_ID')
         secret_access_key = self._check_env(secret_access_key, 'AWS_SECRET_ACCESS_KEY')
         region_name = self._check_env(region_name, 'AWS_REGION_NAME')
         config = self._check_env(config, 'AWS_CONFIG')
+        if verbose:
+            self.log.debug('access_key_id=%s' % str(access_key_id))
+            self.log.debug('secret_access_key=%s' % str(secret_access_key))
+            self.log.debug('region_name=%s' % str(region_name))
+            self.log.debug('config=%s' % str(config))
 
         self.ec2 = boto3.resource(service_name='ec2',
                                   aws_access_key_id=access_key_id,
@@ -108,6 +115,9 @@ class Swarm(object):
         del access_key_id, secret_access_key
         # are we paranoid enough yet??
         # not that it matters much in a GC language
+
+        # get a client object
+        self.client = boto3.client('ec2')
 
         # get absolute path to user ~/.ssh directory
         self.ssh_dir = os.path.expanduser('~/.ssh')
@@ -132,23 +142,22 @@ class Swarm(object):
         else:
             self.log('No running instances')
 
-        self.ec2c = boto3.client('ec2')
-
         # get a list of regions
         self.regions = self._get_regions()
         if self.verbose:
             self.log('Regions:\n%s' % str(self.regions))
 
-        # get a list of zones
-        self.zones = self._get_availability_zones()
+        # get data on zones in this region
+        self.zones = self._get_availability_zones(region_name=region_name)
         if self.verbose:
-            self.log('Zones:\n%s' % str(self.zones))
-
-        # get a client object
-        self.client = boto3.client('ec2')
+            self.log('Availability Zones: %s' % str(self.zones))
 
         self.log('Swarm %s initialized!' % __version__)
 
+    def set_region(self, region_name):
+        """Set the region to use."""
+
+        self.ec2 = boto3.client('ec2', region_name=region_name)
 
     def instances(self):
         """Returns a list of all *running* instances."""
@@ -161,7 +170,8 @@ class Swarm(object):
         return result
 
     def start(self, num, name, image=DefaultImage,
-              region=DefaultRegionName, flavour=DefaultFlavour, key=DefaultKey,
+              region=DefaultRegionName, zone=DefaultZoneName,
+              flavour=DefaultFlavour, key=DefaultKey,
               secgroup=DefaultSecgroup, userdata=None):
         """Start 'num' instances, return list of new instances.
 
@@ -169,6 +179,7 @@ class Swarm(object):
         name      name of server, may contain {number} formatting
         image     image ID or name
         region    the region to use
+        zone      the zone in region to use
         flavour   flavour of the server to start
         key       the key pair name
         secgroup  the security group(s) to use, list of strings
@@ -217,11 +228,13 @@ class Swarm(object):
 
         self.log('pending_names=%s' % str(pending_names))
 
+        placement = {'AvailabilityZone': zone}
         pending_instances = self.ec2.create_instances(ImageId=image,
                                                       InstanceType=flavour,
                                                       KeyName=key,
                                                       SecurityGroups=secgroup,
                                                       UserData=userdata,
+                                                      Placement=placement,
                                                       MinCount=num,
                                                       MaxCount=num)
 
@@ -1091,7 +1104,7 @@ class Swarm(object):
     def _get_regions(self):
         """Return a sorted list of available regions."""
 
-        regions = [r['RegionName'] for r in self.ec2c.describe_regions()['Regions']]
+        regions = [r['RegionName'] for r in self.client.describe_regions()['Regions']]
         return sorted(regions)
 
     def _get_availability_zones(self, region_name=None, state='available'):
@@ -1102,7 +1115,7 @@ class Swarm(object):
         """
 
         result = []
-        az = self.ec2c.describe_availability_zones()
+        az = self.client.describe_availability_zones()
         for zone in az['AvailabilityZones']:
             if zone['State'] == state:
                 result.append(zone['ZoneName'])

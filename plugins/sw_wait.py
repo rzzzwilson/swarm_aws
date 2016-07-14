@@ -81,9 +81,11 @@ def wait(args, kwargs):
     except getopt.error, msg:
         usage()
         return 1
+    verbose = False
     for (opt, param) in opts:
         if opt in ['-v', '--verbose']:
             log.bump_level()
+            verbose = True
 
     # now parse the options
     auth_dir = DefaultAuthDir
@@ -128,7 +130,7 @@ def wait(args, kwargs):
         return 1
 
     # get all instances
-    swm = swarmcore.Swarm()
+    swm = swarmcore.Swarm(verbose=verbose)
     all_instances = swm.instances()
 
     # get a filtered list of instances depending on name_prefix

@@ -137,7 +137,7 @@ def command(args, kwargs):
     cmd = ' '.join(args)
 
     # get all instances
-    swm = swarmcore.Swarm()
+    swm = swarmcore.Swarm(verbose=verbose)
     all_instances = swm.instances()
 
     # get a filtered list of instances depending on name_prefix
