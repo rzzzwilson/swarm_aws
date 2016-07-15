@@ -150,7 +150,7 @@ class Swarm(object):
         # get data on zones in this region
         self.zones = self._get_availability_zones(region_name=region_name)
         if self.verbose:
-            self.log('Availability Zones: %s' % str(self.zones))
+            self.log('Availability Zones in region %s: %s' % (region_name, str(self.zones)))
 
         self.log('Swarm %s initialized!' % __version__)
 
