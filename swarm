@@ -223,7 +223,8 @@ def excepthook(type, value, tb):
 
     print msg
     log.critical(msg)
-    sys.exit(1)
+# don't quit here - we are ging to stop anyway
+#    sys.exit(1)
 
 # plug our handler into the python system
 sys.excepthook = excepthook
