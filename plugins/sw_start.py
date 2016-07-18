@@ -32,7 +32,8 @@ import os
 import sys
 import shutil
 import time
-import getopt
+#import getopt
+import argparse
 import commands
 import tempfile
 import traceback
@@ -47,10 +48,11 @@ log = log.Log('swarm.log', log.Log.DEBUG)
 # program version
 MajorRelease = 0
 MinorRelease = 1
+VersionString = 'v%d.%d' % (MajorRelease, MinorRelease)
 
 Plugin = {
           'entry': 'start',
-          'version': 'v%d.%d' % (MajorRelease, MinorRelease),
+          'version': VersionString,
           'command': 'start',
          }
 
@@ -180,100 +182,79 @@ def start(args, kwargs):
     global Verbose
 
     # parse the command args
-    try:
-        (opts, args) = getopt.getopt(args, 'a:c:f:hi:k:p:qr:s:u:vVz:',
-                                     ['auth=', 'config=', 'flavour=', 'help',
-                                      'image=', 'key=', 'prefix=', 'quiet',
-                                      'region=', 'secgroup=', 'userdata=',
-                                      'verbose', 'version', 'zone=', ])
-    except getopt.error, e:
-        usage(str(e.msg))
-        return 1
+    parser = argparse.ArgumentParser(description='This program is designed to start a number of new EC2 instances.')
+    parser.add_argument('-a', '--auth', dest='auth', action='store',
+                        help='set the path to the authentication directory',
+                                metavar='<auth>')
+    parser.add_argument('-c', '--config', dest='config', action='store',
+                        help='set the config from this file',
+                        metavar='<configfile>')
+    parser.add_argument('-f', '--flavour', dest='flavour', action='store',
+                        help='set the new instance flavour',
+                        metavar='<configfile>')
+    parser.add_argument('-i', '--image', dest='image', action='store',
+                        help='set the image for the new instance',
+                        metavar='<image>')
+    parser.add_argument('-k', '--key', dest='key', action='store',
+                        help='set the key file for the new instance',
+                        metavar='<key>')
+    parser.add_argument('-p', '--prefix', dest='prefix', action='append',
+                        help='set the prefix for the new instance name',
+                        metavar='<prefix>')
+    parser.add_argument('-q', '--quiet', dest='quiet', action='store_true',
+                        help='be quiet for scripting',
+                        default=False)
+    parser.add_argument('-r', '--region', dest='region', action='store',
+                        help='set the region for the new instance name',
+                        metavar='<region>')
+    parser.add_argument('-s', '--secgroup', dest='secgroup', action='store',
+                        help='set the security group for the new instance',
+                        metavar='<secgroup>')
+    parser.add_argument('-u', '--userdata', dest='userdata', action='store',
+                        help='set the userdata file for the new instance',
+                        metavar='<userdata>')
+    parser.add_argument('-v', '--verbose', action='count',
+                        help='make execution mot verbose', default=0)
+    parser.add_argument('-V', '--version', action='version', version=VersionString,
+                        help='print the version and stop')
+    parser.add_argument('-z', '--zone', dest='zone', action='store',
+                        help='set the zone for the new instance',
+                        metavar='<zone>')
+    parser.add_argument('number', metavar='N', action='store',
+                        type=int, help='the number of instances to start')
 
-    # do -c and -v now
-    config = None
-    Verbose = False
-    for (opt, param) in opts:
-        if opt in ['-c', '--config']:
-            config = param
-        if opt in ['-v', '--verbose']:
-            Verbose = True
-            log.bump_level()
+    args = parser.parse_args()
 
     # read config file, if we have one
     # this may update the variables just set from defaults
-    if config:
-        load_config(config)
+    if args.config:
+        load_config(args.config)
 
     # set variables to possibly modified defaults
-    auth = DefaultAuthPath
-    flavour = DefaultFlavour
-    image = DefaultImage
-    key = DefaultKey
-    name = DefaultNamePrefix
-    quiet = False
-    region = DefaultRegion
-    zone = DefaultZone
-    secgroup = DefaultSecgroup
-    userdata = DefaultUserdata
+    auth = args.auth
+    flavour = args.flavour
+    image = args.image
+    key = args.key
+    prefix = args.prefix
+    quiet = args.quiet
+    region = args.region
+    zone = args.zone
+    secgroup = args.secgroup
+    userdata = args.userdata
 
-    # now parse the options
-    # this is the users final chance to change default values
-    for (opt, param) in opts:
-        if opt in ['-a', '--auth']:
-            auth = param
-        elif opt in ['-c', '--config']:
-            # done above
-            pass
-        elif opt in ['-f', '--flavour']:
-            flavour = param
-        elif opt in ['-h', '--help']:
-            usage()
-            return 0
-        elif opt in ['-i', '--image']:
-            image = param
-        elif opt in ['-k', '--key']:
-            key = param
-        elif opt in ['-p', '--prefix']:
-            name = param
-        elif opt in ['-q', '--quiet']:
-            quiet = True
-        elif opt in ['-r', '--region']:
-            region = param
-        elif opt in ['-s', '--secgroup']:
-            secgroup = param
-        elif opt in ['-u', '--userdata']:
-            userdata = param
-        elif opt in ['-V', '--version']:
-            print('%s %s' % (Plugin['command'], Plugin['version']))
-            return 0
-        elif opt in ['-v', '--verbose']:
-            # done above
-            pass
-        elif opt in ['-z', '--zone']:
-            zone = param
-
-    if len(args) != 1:
-        usage('You must supply the number of instances to start.')
-        return 1
-    try:
-        num = int(args[0])
-    except ValueError:
-        usage('Instance number must be a non-negative integer')
-        sys.exit(1)
-    if num < 0:
+    if args.number < 0:
         usage('Instance number must be a non-negative integer')
         sys.exit(1)
 
     # look at prefix - if it doesn't contain '{number' add it
-    prefix_name = name
-    if '{number' not in name:
+    prefix_name = prefix
+    if '{number' not in prefix:
         if num != 1:
             usage("Instance prefix must contain '{number...}' if number of instances > 1")
             sys.exit(1)
 
     if Verbose:
-        log.debug('sw_start: name=%s' % name)
+        log.debug('sw_start: prefix=%s' % prefix)
         log.debug('sw_start: num=%d' % num)
         log.debug('sw_start: prefix_name=%s' % prefix_name)
 
@@ -295,8 +276,8 @@ def start(args, kwargs):
             log.debug('userdata:\n%s' % userdata_str)
 
     # start instance nodes, wait until running
-    log.debug('name=%s' % str(name))
-    new = s.start(num, name, image=image, region=region, zone=zone,
+    log.debug('prefix=%s' % str(prefix))
+    new = s.start(num, prefix, image=image, region=region, zone=zone,
                   flavour=flavour, key=key, secgroup=secgroup,
                   userdata=userdata_str)
     if not quiet:
@@ -304,7 +285,7 @@ def start(args, kwargs):
 
     if Verbose:
         log.debug('sw_start: num=%d' % num)
-        log.debug('sw_start: name=%s' % name)
+        log.debug('sw_start: prefix=%s' % prefix)
         log.debug('sw_start: image=%s' % image)
         log.debug('sw_start: flavour=%s' % flavour)
         log.debug('sw_start: key=%s' % key)
