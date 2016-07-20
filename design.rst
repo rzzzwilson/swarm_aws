@@ -1,7 +1,7 @@
 Design
 ======
 
-The basic low-level code is on the **swarmcore** directory.
+The basic low-level code is in the **swarmcore** directory.
 
 The **plugins** directory holds the command plugins.
 
@@ -21,7 +21,7 @@ allows the harness to find:
 The harness will look in the **plugins** directory at startup looking for
 plugins and populating the plugin environment.
 
-Each plugin will also be a standalone executable.
+~~Each plugin will also be a standalone executable.~~
 
 Plugin Introspection
 ____________________
@@ -62,4 +62,7 @@ The harness code will be called:
 
     swarm <cmd> <arg1> <arg2> ...
 
-The **<cmd>** string determines which plugin the <arg1> ... are passed to.
+The **<cmd>** string determines which plugin the args are passed to.
+The plugin code will see a **sys.argv** that contains:
+
+    <cmd> <arg1> <arg2> ...
