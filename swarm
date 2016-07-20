@@ -148,6 +148,10 @@ def swarm(verbose, cmd_args):
         raise
     plugin_entry = eval('plugin_module.%s.%s' % (cmd_plugin['module'], cmd_plugin['entry']))
     def_args = {}
+
+    sys.argv = [command]
+    sys.argv.extend(cmd_args)
+
     return plugin_entry(cmd_args, def_args)
 
 def do_list_cmd(args, plugin_data):

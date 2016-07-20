@@ -97,12 +97,12 @@ class Swarm(object):
         access_key_id = self._check_env(access_key_id, 'AWS_ACCESS_KEY_ID')
         secret_access_key = self._check_env(secret_access_key, 'AWS_SECRET_ACCESS_KEY')
         region_name = self._check_env(region_name, 'AWS_REGION_NAME')
-        config = self._check_env(config, 'AWS_CONFIG')
+#        config = self._check_env(config, 'AWS_CONFIG')
         if verbose:
             self.log.debug('access_key_id=%s' % str(access_key_id))
             self.log.debug('secret_access_key=%s' % str(secret_access_key))
             self.log.debug('region_name=%s' % str(region_name))
-            self.log.debug('config=%s' % str(config))
+#            self.log.debug('config=%s' % str(config))
 
         self.ec2 = boto3.resource(service_name='ec2',
                                   aws_access_key_id=access_key_id,
@@ -199,6 +199,7 @@ class Swarm(object):
             if server.state['Name'] in ('pending', 'running'):
                 running_name = self.get_name(server)
                 names_already_used.append(running_name)
+        self.log('names_already_used=%s' % str(names_already_used))
 
         result = []
         instance_number = 0
@@ -207,22 +208,27 @@ class Swarm(object):
 
         # generate unique instance names
         # result is 'pending_names': list of names to call new instances
-        self.log.debug('name=%s, names_already_used=%s' % (name, str(names_already_used)))
-        while number_names < num:
-            # look for an unused name
-            instance_number += 1
-            instance_name = name.format(number=instance_number)
-            self.log.debug('instance_number=%d, name=%s, instance_name=%s' % (instance_number, name, instance_name))
-            if instance_name in names_already_used:
-                if instance_number > 999:
-                    # runaway search
-                    msg = ("Runaway name search, instance_name=%s.\n"
-                           "Perhaps name doesn't have a {number} format and name already used?"
-                           % instance_name)
-                    raise Exception(msg)
-                continue
-            self.log('new server name=%s' % instance_name)
-            number_names += 1
+        instance_name = name
+        if num > 1 or '{number' in name:
+            self.log("num=%d, '{number' in name=%s" % (num, str('{number' in name)))
+            while number_names < num:
+                self.log('loop: num=%d, number_names=%d' % (num, number_names))
+                # look for an unused name
+                instance_number += 1
+                instance_name = name.format(number=instance_number)
+                if instance_name in names_already_used:
+                    if instance_number > 999:
+                        # runaway search
+                        msg = ("Runaway name search, instance_name=%s.\n"
+                               "Perhaps name doesn't have a {number} format and name already used?"
+                               % instance_name)
+                        raise Exception(msg)
+                    continue
+                self.log('new server name=%s' % instance_name)
+                number_names += 1
+                pending_names.append(instance_name)
+                names_already_used.append(instance_name)
+        elif num == 1:
             pending_names.append(instance_name)
             names_already_used.append(instance_name)
 
@@ -245,7 +251,7 @@ class Swarm(object):
 #            self.log_state(pending_instances[0])
 
         # wait until instances are running and then name them
-        self.log('Start of Name tagging')
+        self.log('Start of Name tagging, pending_instances=%s' % str(pending_instances))
         if pending_instances:
             for (server, name) in zip(pending_instances, pending_names):
                 server.wait_until_running()
