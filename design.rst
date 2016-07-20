@@ -31,7 +31,6 @@ Each plugin will have a top-level dictionary **Plugin**.
 Each dictionary contains information for the plugin.  The dictionary
 will contain:
 
-* plugin code name (**name**)
 * plugin entry function (**entry**)
 * plugin version string (**version**)
 * plugin command string (**command**)
@@ -60,9 +59,13 @@ Harness
 
 The harness code will be called:
 
+::
+
     swarm <cmd> <arg1> <arg2> ...
 
 The **<cmd>** string determines which plugin the args are passed to.
 The plugin code will see a **sys.argv** that contains:
+
+::
 
     <cmd> <arg1> <arg2> ...
