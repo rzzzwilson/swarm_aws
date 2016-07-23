@@ -50,6 +50,7 @@ MajorRelease = 0
 MinorRelease = 1
 VersionString = 'v%d.%d' % (MajorRelease, MinorRelease)
 
+# plugin info
 Plugin = {
           'entry': 'start',
           'version': VersionString,

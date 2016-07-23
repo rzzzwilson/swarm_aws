@@ -25,33 +25,28 @@ An example:
 
 import os
 import sys
-import getopt
+import argparse
 import swarmcore
 from swarmcore import log
+import swarmcore.utils as utils
+import swarmcore.defaults as defaults
+
 log = log.Log('swarm.log', log.Log.DEBUG)
 
 
 # program version
 MajorRelease = 0
 MinorRelease = 1
+VersionString = 'v%d.%d' % (MajorRelease, MinorRelease)
 
 # plugin info
 Plugin = {
           'entry': 'command',
-          'version': 'v%d.%d' % (MajorRelease, MinorRelease),
+          'version': VersionString,
           'command': 'cmd',
          }
 
-# default values
-DefaultAuthDir = os.path.expanduser('~/.ssh')
-
-
-def error(msg):
-    """Print error message and quit."""
-
-    usage(msg)
-    sys.exit(1)
-
+# this function can't be in utils.py as we need access to __doc__
 def usage(msg=None):
     """Print help for the befuddled user."""
 
@@ -89,52 +84,59 @@ def command(args, kwargs):
 
         return key[1]
 
-    # parse the command params
-    try:
-        (opts, args) = getopt.getopt(args, 'a:hip:qVv',
-                                     ['auth=', 'help', 'ip', 'prefix=',
-                                      'quiet', 'version', 'verbose'])
-    except getopt.error, msg:
-        usage()
-        return 1
+    # parse the command args
+    parser = argparse.ArgumentParser(description='This program runs a command on the specified EC2 instances.')
+    parser.add_argument('-a', '--auth', dest='auth', action='store',
+                        help='set the path to the authentication directory',
+                        metavar='<auth>', default=defaults.AuthPath)
+    parser.add_argument('-c', '--config', dest='config', action='store',
+                        help='set the config from this file',
+                        metavar='<configfile>')
+    parser.add_argument('-i', '--ip', dest='show_ip', action='store_true',
+                        help='display the instance IP in the results',
+                        default=False)
+    parser.add_argument('-k', '--key', dest='key', action='store',
+                        help='set the key file to use',
+                        metavar='<key>', default=defaults.Key)
+    parser.add_argument('-p', '--prefix', dest='prefix', action='store',
+                        help='set the prefix for the new instance name',
+                        metavar='<prefix>')
+    parser.add_argument('-q', '--quiet', dest='quiet', action='store_true',
+                        help='be quiet for scripting', default=False)
+    parser.add_argument('-r', '--region', dest='region', action='store',
+                        help='set the region to use',
+                        metavar='<region>', default=defaults.Region)
+    parser.add_argument('-s', '--secgroup', dest='secgroup', action='store',
+                        help='set the security group to use',
+                        metavar='<secgroup>', default=defaults.Secgroup)
+    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
+                        help='make execution verbose', default=False)
+    parser.add_argument('-V', '--version', action='version', version=VersionString,
+                        help='print the version and stop')
+    parser.add_argument('-z', '--zone', dest='zone', action='store',
+                        help='set the zone to use',
+                        metavar='<zone>', default=defaults.Zone)
+    parser.add_argument('command', metavar='<command>', action='store',
+                        type=str, help='the command to run on each instance')
+    args = parser.parse_args()
 
-    verbose = False
-    for (opt, param) in opts:
-        if opt in ['-v', '--verbose']:
-            log.bump_level()
-            verbose = True
+    # read config file, if we have one
+    # set global values from the config file
+    config_values = {}
+    if args.config:
+        config_values = utils.load_config(args.config)
 
-    # now parse the options
-    auth_dir = DefaultAuthDir
-    show_ip = False
-    name_prefix = None
-    quiet = False
-    for (opt, param) in opts:
-        if opt in ['-a', '--auth']:
-            auth_dir = param
-            if not os.path.isdir(auth_dir):
-                error("Authentication directory '%s' doesn't exist"
-                      % auth_dir)
-        elif opt in ['-h', '--help']:
-            usage()
-            return 0
-        elif opt in ['-i', '--ip']:
-            show_ip = True
-        elif opt in ['-p', '--prefix']:
-            name_prefix = param
-        elif opt in ['-q', '--quiet']:
-            quiet = True
-        elif opt in ['-V', '--version']:
-            print('%s %s' % (__program__, __version__))
-            return 0
-        elif opt in ['-v', '--verbose']:
-            pass        # done above
+    # set variables to possibly modified defaults
+    auth = config_values.get('auth', args.auth)
+    key = config_values.get('args.key', args.key)
+    quiet = args.quiet
+    region = config_values.get('region', args.region)
+    secgroup = config_values.get('secgroup', args.secgroup)
+    verbose = args.verbose
+    zone = config_values.get('zone', args.zone)
 
-    if len(args) < 1:
-        usage()
-        return 1
-
-    cmd = ' '.join(args)
+    # gather all parameters and make a command string
+    cmd = args.command
 
     # get all instances
     swm = swarmcore.Swarm(verbose=verbose)
