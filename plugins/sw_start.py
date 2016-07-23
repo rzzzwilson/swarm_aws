@@ -56,17 +56,6 @@ Plugin = {
           'command': 'start',
          }
 
-# default instance  values
-DefaultAuthPath = os.path.expanduser('~/.ssh')
-DefaultRegion = 'ap-southeast-2'
-DefaultZone = 'ap-southeast-2a'
-DefaultFlavour = 't2.micro'
-DefaultImage = None
-DefaultKey = 'ec2_sydney'
-DefaultNamePrefix = 'instance{number}'
-DefaultSecgroup = 'sydney'
-DefaultUserdata = None
-
 # this function can't be in utils.py as we need access to __doc__
 def usage(msg=None):
     """Print help for the befuddled user."""
