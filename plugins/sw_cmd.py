@@ -15,12 +15,12 @@ where <options> is zero or more of:
     -p   --prefix   name prefix used to select nodes (default is all instances)
     -q   --quiet    be quiet for scripting
     -V   --version  print version information and stop
-    -v   --verbose  be verbose (cumulative)
+    -v   --verbose  be verbose
 and <command> is the command string to execute on the node.
 
 An example:
 
-    swarm cmd -vv "ls -la /tmp"
+    swarm cmd -v -p "test" "ls -la /tmp"
 """
 
 import os
