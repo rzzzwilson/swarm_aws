@@ -24,6 +24,9 @@ list the copied files and then stop the instances::
 Note: after the "swarm start" we need to wait until the instances can accept
 SSH connections.
 
+Another example is the script **periscope** which uses **sshuttle** to create
+a poor man's VPN.
+
 Directories
 -----------
 
