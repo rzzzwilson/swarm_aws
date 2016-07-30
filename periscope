@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# This script starts an AWS instance and shoves all 'net traffic through it.
+# A sort of "poor mans'" VPN.
+#
+# Usage: periscope <options>
+#
+# where <options> is zero or more of:
+#     -h    prints help text and stops
+#     -v    be verbose
+#
+# Needs 'sshuttle' installed. Get it from [https://github.com/apenwarr/sshuttle].
+# Note that you need to enter the root password to make changes on your machine.
+#
+# Needs 'swarm', of course: [https://github.com/rzzzwilson/swarm_aws].
+
+# instance name we are going to use
+VPN_NAME="periscope"
+
+# wait time for "after IP" thread
+WAIT_TIME=30
+
+# kill off any existing instance(s)
+swarm stop -p "$VPN_NAME" -q -y
+swarm wait -p "$VPN_NAME" -q terminated
+
+# show user our 'unprotected' IP
+BEFORE_IP=$(wget -qO- http://ipecho.net/plain)
+echo "Before, IP=$BEFORE_IP"
+
+# start a t.micro instance, wait until it can accept SSH connections
+swarm start -c instance_config -p "$VPN_NAME" -q 1
+swarm wait -p "$VPN_NAME" -q ssh
+
+# get instance hostname
+HOST_NAME=$(swarm cmd -p "$VPN_NAME" -i -q "wget -q -O - http://169.254.169.254/latest/meta-data/public-hostname")
+#echo "HOST_NAME=$HOST_NAME"
+HOST_NAME=$(echo "$HOST_NAME" | sed -e "s/^.*|//")
+#echo "HOST_NAME=$HOST_NAME"
+
+# since sshuttle blocks, we need to start a thread to get AFTER IP
+(echo "*"; sleep $WAIT_TIME; echo -n " After, IP="; echo $(wget -qO- http://ipecho.net/plain))&
+
+# now start the local part of the connection
+sshuttle -r ec2-user@$HOST_IP --dns 0.0.0.0/0
