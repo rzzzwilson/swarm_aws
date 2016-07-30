@@ -129,9 +129,11 @@ def command(args, kwargs):
     # set variables to possibly modified defaults
     auth = config_values.get('auth', args.auth)
     key = config_values.get('args.key', args.key)
+    prefix = config_values.get('args.prefix', args.prefix)
     quiet = args.quiet
     region = config_values.get('region', args.region)
     secgroup = config_values.get('secgroup', args.secgroup)
+    show_ip = config_values.get('show_ip', args.show_ip)
     verbose = args.verbose
     zone = config_values.get('zone', args.zone)
 
@@ -142,14 +144,14 @@ def command(args, kwargs):
     swm = swarmcore.Swarm(verbose=verbose)
     all_instances = swm.instances()
 
-    # get a filtered list of instances depending on name_prefix
+    # get a filtered list of instances depending on prefix
     prefixes = []
     filtered_instances = all_instances
-    if name_prefix is not None:
-        prefixes = name_prefix.split(',')
+    if prefix is not None:
+        prefixes = prefix.split(',')
         filtered_instances = []
-        for prefix in prefixes:
-            filter = swm.filter_name_prefix(prefix)
+        for p in prefixes:
+            filter = swm.filter_name_prefix(p)
             s = swm.filter(all_instances, filter)
             filtered_instances = swm.union(filtered_instances, s)
 
@@ -177,15 +179,15 @@ def command(args, kwargs):
         answer = sorted(new_answer, key=name_key)
 
     # display results
-    if not quiet:
-        for (result, name) in answer:
-            (status, output) = result
-            output = output.split('\n')
-            canonical_output = ('\n'+' '*17+' |').join(output)
-            if status == 0:
-                print('%-17s |%s' % (name, canonical_output))
-            else:
-                print('%-17s*|%s' % (name, canonical_output))
+#    if not quiet:
+    for (result, name) in answer:
+        (status, output) = result
+        output = output.split('\n')
+        canonical_output = ('\n'+' '*17+' |').join(output)
+        if status == 0:
+            print('%-17s |%s' % (name, canonical_output))
+        else:
+            print('%-17s*|%s' % (name, canonical_output))
 
     if verbose:
         log.debug('==============================================================')
