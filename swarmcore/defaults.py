@@ -15,5 +15,6 @@ Image = None
 Key = 'ec2_sydney'
 NamePrefix = 'instance{number}'
 Secgroup = 'sydney'
+State = 'running'
 Userdata = None
 

@@ -8,6 +8,7 @@ In AWS-speak, set required instances to the 'terminated' state.
 Usage: swarm stop <options>
 
 where <options> is zero or more of:
+    -c   --config   set the config from a file
     -h   --help     print this help and stop
     -p   --prefix   name prefix used to select nodes (required)
     -q   --quiet    be quiet for scripting
@@ -25,16 +26,18 @@ As an example, the following will stop all instances whose name starts with
 
 import os
 import sys
-import getopt
+import argparse
 import swarmcore
 from swarmcore import log
-from swarmcore import utils
 log = log.Log('swarm.log', log.Log.DEBUG)
+import swarmcore.utils as utils
+import swarmcore.defaults as defaults
 
 
 # program version
 MajorRelease = 0
 MinorRelease = 1
+VersionString = 'v%d.%d' % (MajorRelease, MinorRelease)
 
 Plugin = {
           'entry': 'stop',
@@ -70,78 +73,74 @@ def stop(args, kwargs):
         auth      path to auth directory
     """
 
-    global Verbose
-
     # parse the command args
-    try:
-        (opts, args) = getopt.getopt(args, 'hp:qs:Vviwy',
-                                     ['help', 'prefix=', 'quiet', 'state=',
-                                      'version', 'verbose', 'wait', 'yes'])
-    except getopt.error, e:
-        usage(str(e.msg))
-        return 1
+    parser = argparse.ArgumentParser(description='This program is designed to stop a number of EC2 instances.')
+    parser.add_argument('-c', '--config', dest='config', action='store',
+                        help='set the config from this file',
+                        metavar='<configfile>')
+    parser.add_argument('-p', '--prefix', dest='prefix', action='store',
+                        help='set the prefix for the new instance name',
+                        metavar='<prefix>')
+    parser.add_argument('-q', '--quiet', dest='quiet', action='store_true',
+                        help='be quiet for scripting', default=False)
+    parser.add_argument('-s', '--state', dest='state', action='store',
+                        help='the state of the instances to be stopped',
+                        metavar='<state>', default=defaults.State)
+    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
+                        help='make execution verbose', default=False)
+    parser.add_argument('-V', '--version', action='version', version=VersionString,
+                        help='print the version and stop')
+    parser.add_argument('-w', '--wait', dest='wait', action='store_true',
+                        help='wait for the instance to stop', default=False)
+    parser.add_argument('-y', '--yes', dest='yes', action='store_true',
+                        help="don't prompt before stopping", default=False)
 
-    Verbose = False
-    for (opt, param) in opts:
-        if opt in ['-v', '--verbose']:
-            Verbose = True
-            log.bump_level()
+    args = parser.parse_args()
 
-    # now parse the options
-    name_prefix = None
-    quiet = False
-    state = 'running'       # we assume that we only stop 'running' instances
-    wait = False
-    y_opt = False
-    for (opt, param) in opts:
-        if opt in ['-h', '--help']:
-            usage()
-            return 0
-        elif opt in ['-p', '--prefix']:
-            name_prefix = param
-        elif opt in ['-q', '--quiet']:
-            quiet = True
-        elif opt in ['-s', '--state']:
-            state = param
-        elif opt in ['-V', '--version']:
-            print('%s v%s' % (Plugin['command'], Plugin['version']))
-            return 0
-        elif opt in ['-v', '--verbose']:
-            pass        # done above
-        elif opt in ['-w', '--wait']:
-            wait = True
-        elif opt in ['-y', '--yes']:
-            y_opt = True
+    # read config file, if we have one
+    # set global values from the config file
+    config_values = {}
+    if args.config:
+        config_values = utils.load_config(args.config)
 
-    if len(args) != 0:
-        usage("Don't need any params for 'stop'")
-        return 1
+    # set variables to possibly modified defaults
+    prefix = config_values.get('args.prefix', args.prefix)
+    quiet = args.quiet
+    state = config_values.get('state', args.state)
+    verbose = args.verbose
+    wait = args.wait
+    yes = args.yes
 
-    # it's too dangerous to allow a global terminate of all instances
-    # use '-p ""' if you want to do this
-    if name_prefix is None and state is None:
+    if verbose:
+        log.debug('sw_stop: prefix=%s' % str(prefix))
+        log.debug('sw_stop: state=%s' % str(state))
+        log.debug('sw_stop: wait=%s' % str(wait))
+        log.debug('sw_stop: yes=%s' % str(yes))
+
+    # check if enough information supplied
+    if prefix is None and state is None:
         usage("You must specify instance(s) to stop ('-p' and/or '-s' options).")
         return 1
 
     # get all instances
-    swm = swarmcore.Swarm(verbose=Verbose)
+    swm = swarmcore.Swarm(verbose=verbose)
     all_instances = swm.instances()
-    if Verbose:
+    if verbose:
         log('instances=%s' % str(all_instances))
 
-    # get a filtered list of instances depending on name_prefix, state, etc
+    # get a filtered list of instances depending on prefix, state, etc
     prefix_str = '*'        # assume user wants to stop ALL instances
     filtered_instances = all_instances
-    if name_prefix is not None:
-        prefixes = name_prefix.split(',')
+    if prefix is not None:
+        prefixes = prefix.split(',')
         prefix_str = '*|'.join(prefixes) + '*'
         filtered_instances = []
         for prefix in prefixes:
             f = swm.filter_name_prefix(prefix)
             s = swm.filter(all_instances, f)
             filtered_instances = swm.union(filtered_instances, s)
-    if Verbose:
-        log('name_prefix=%s, prefix_str=%s' % (str(name_prefix), prefix_str))
+    if verbose:
+        log('prefix=%s, prefix_str=%s' % (str(prefix), prefix_str))
         log('filtered_instances=%s' % str(filtered_instances))
 
     state_str = '*'         # assume user wants to stop all states of instances
@@ -155,7 +154,7 @@ def stop(args, kwargs):
             s = swm.filter(filtered_instances, f)
             state_instances = swm.union(state_instances, s)
     filtered_instances = state_instances
-    if Verbose:
+    if verbose:
         log('state=%s, state_str=%s' % (str(state), state_str))
         log('filtered_instances=%s' % str(filtered_instances))
 
@@ -173,7 +172,7 @@ def stop(args, kwargs):
         return 0
 
     # give user a chance to bail
-    if y_opt:
+    if yes:
         answer = 'y'
     else:
         answer = raw_input('Stopping %d instances.  Proceed? (y/N): '
@@ -192,7 +191,7 @@ def stop(args, kwargs):
     if not quiet:
         print('Stopped %d instances.' % len(filtered_instances))
 
-    if Verbose:
+    if verbose:
         log.debug('==============================================================')
         log.debug('=========================  FINISHED  =========================')
         log.debug('==============================================================')
