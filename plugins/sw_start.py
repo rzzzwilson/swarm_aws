@@ -38,12 +38,13 @@ import tempfile
 import traceback
 
 import swarmcore
-from swarmcore import log
+import swarmcore.log
 import swarmcore.utils as utils
 import swarmcore.defaults as defaults
 
-log = log.Log('swarm.log', log.Log.DEBUG)
 
+# set up logging
+log = swarmcore.log.Log('swarm.log', swarmcore.log.Log.DEBUG)
 
 # program version
 MajorRelease = 0
@@ -85,7 +86,8 @@ def start(args, kwargs):
     """
 
     # parse the command args
-    parser = argparse.ArgumentParser(description='This program is designed to start a number of new EC2 instances.')
+    parser = argparse.ArgumentParser(prog='swarm start',
+                                     description='This program is designed to start a number of new EC2 instances.')
     parser.add_argument('-a', '--auth', dest='auth', action='store',
                         help='set the path to the authentication directory',
                         metavar='<auth>', default=defaults.AuthPath)
@@ -115,15 +117,15 @@ def start(args, kwargs):
     parser.add_argument('-u', '--userdata', dest='userdata', action='store',
                         help='set the userdata file for the new instance',
                         metavar='<userdata>')
-    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
-                        help='make execution verbose', default=False)
+    parser.add_argument('-v', '--verbose', dest='verbose', action='count',
+                        default=0, help='make logging more verbose')
     parser.add_argument('-V', '--version', action='version', version=VersionString,
                         help='print the version and stop')
     parser.add_argument('-z', '--zone', dest='zone', action='store',
                         help='set the zone for the new instance',
                         metavar='<zone>', default=defaults.Zone)
-    parser.add_argument('number', metavar='N', action='store',
-                        type=int, help='the number of instances to start')
+    parser.add_argument('number', metavar='N', action='store', type=int,
+                        help='the number of instances to start')
 
     args = parser.parse_args()
 
@@ -132,6 +134,12 @@ def start(args, kwargs):
     config_values = {}
     if args.config:
         config_values = utils.load_config(args.config)
+
+    # increase verbosity if required
+    verbose = False
+    for _ in range(args.verbose):
+        log.bump_level()
+        verbose = True
 
     # set variables to possibly modified defaults
     auth = config_values.get('auth', None)
@@ -143,7 +151,6 @@ def start(args, kwargs):
     region = config_values.get('region', args.region)
     secgroup = config_values.get('secgroup', args.secgroup)
     userdata = config_values.get('userdata', args.userdata)
-    verbose = args.verbose
     zone = config_values.get('zone', args.zone)
     number = args.number
 

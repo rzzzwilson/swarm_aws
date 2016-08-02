@@ -11,13 +11,12 @@ states we can wait for are:
 Usage: swarm wait <options> <state>
 
 where <options> is zero or more of:
-    -a   --auth     directory holding authentication keys (default is ~/.ssh)
     -h   --help     print this help and stop
-    -i   --ip       show source as IP address, not instance name
+    -i   --ip       show instance IP address, not name
     -p   --prefix   name prefix used to select nodes (default is all servers)
     -q   --quiet    be quiet (for scripting)
     -V   --version  print version information and stop
-    -v   --verbose  be verbose (cumulative)
+    -v   --verbose  make logging verbose (cumulative)
 
 The return status is non-zero if not all instances achived the required state
 before timeout.
@@ -30,19 +29,24 @@ SSH connection.
 
 import os
 import sys
-import getopt
+import argparse
 import swarmcore
-from swarmcore import log
-log = log.Log('swarm.log', log.Log.DEBUG)
+import swarmcore.log
+import swarmcore.utils as utils
+import swarmcore.defaults as defaults
 
+
+# set up logging
+log = swarmcore.log.Log('swarm.log', swarmcore.log.Log.DEBUG)
 
 # program version
 MajorRelease = 0
 MinorRelease = 1
+VersionString = 'v%d.%d' % (MajorRelease, MinorRelease)
 
 Plugin = {
           'entry': 'wait',
-          'version': 'v%d.%d' % (MajorRelease, MinorRelease),
+          'version': '%s' % VersionString,
           'command': 'wait',
          }
 
@@ -73,54 +77,39 @@ def wait(args, kwargs):
     kwargs  a dict of default values
     """
 
-    # parse the command params
-    try:
-        (opts, args) = getopt.getopt(args, 'a:hip:qVv',
-                                     ['auth=', 'help', 'ip', 'prefix=',
-                                      'quiet', 'version', 'verbose'])
-    except getopt.error, msg:
-        usage()
-        return 1
+    # parse the command args
+    parser = argparse.ArgumentParser(prog="swarm wait",
+                                     description='This plugin waits for a state on the specified instances.')
+    parser.add_argument('-i', '--ip', dest='show_ip', action='store_true',
+                        help='show public IP instead of instance name',
+                        default=False)
+    parser.add_argument('-p', '--prefix', dest='prefix', action='store',
+                        help='set the prefix for the new instance name',
+                        metavar='<prefix>')
+    parser.add_argument('-q', '--quiet', dest='quiet', action='store_true',
+                        help='be quiet for scripting', default=False)
+    parser.add_argument('-v', '--verbose', dest='verbose', action='count',
+                        default=0, help='make logging more verbose (cumulative)')
+    parser.add_argument('-V', '--version', action='version',
+                        version=VersionString, help='print the version and stop')
+    parser.add_argument('state', action='store', help='the state to wait for')
+
+    args = parser.parse_args()
+
+    # set variables
+    show_ip = args.show_ip
+    prefix = args.prefix
+    quiet = args.quiet
+    state = args.state
+
+    # increase verbosity if required
     verbose = False
-    for (opt, param) in opts:
-        if opt in ['-v', '--verbose']:
-            log.bump_level()
-            verbose = True
+    for _ in range(args.verbose):
+        log.bump_level()
+        verbose = True
 
-    # now parse the options
-    auth_dir = DefaultAuthDir
-    show_ip = False
-    name_prefix = None
-    quiet = False
-    for (opt, param) in opts:
-        if opt in ['-a', '--auth']:
-            auth_dir = param
-            if not os.path.isdir(auth_dir):
-                error("Authentication directory '%s' doesn't exist"
-                      % auth_dir)
-        elif opt in ['-h', '--help']:
-            usage()
-            return 0
-        elif opt in ['-i', '--ip']:
-            show_ip = True
-        elif opt in ['-p', '--prefix']:
-            name_prefix = param
-        elif opt in ['-q', '--quiet']:
-            quiet = True
-        elif opt in ['-V', '--version']:
-            print('%s %s' % (__program__, __version__))
-            return 0
-        elif opt in ['-v', '--verbose']:
-            pass        # done above
-
-    # get the state required
-    if len(args) != 1:
-        usage('Only one wait state may be specified.')
-        return 1
-
-    state = args[0].lower()
-    log.debug("wait: auth_dir=%s, show_ip=%s, name_prefix='%s', state='%s'"
-              % (auth_dir, str(show_ip), str(name_prefix), state))
+    log.debug("wait: show_ip=%s, prefix='%s', state='%s'"
+              % (str(show_ip), str(prefix), state))
 
     if state not in LegalStates:
         states = '\n    '.join(LegalStates)
@@ -133,11 +122,11 @@ def wait(args, kwargs):
     swm = swarmcore.Swarm(verbose=verbose)
     all_instances = swm.instances()
 
-    # get a filtered list of instances depending on name_prefix
+    # get a filtered list of instances depending on prefix
     prefixes = []
     filtered_instances = all_instances
-    if name_prefix is not None:
-        prefixes = name_prefix.split(',')
+    if prefix is not None:
+        prefixes = prefix.split(',')
         filtered_instances = []
         for prefix in prefixes:
             filter = swm.filter_name_prefix(prefix)

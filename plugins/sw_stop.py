@@ -28,11 +28,13 @@ import os
 import sys
 import argparse
 import swarmcore
-from swarmcore import log
-log = log.Log('swarm.log', log.Log.DEBUG)
+import swarmcore.log
 import swarmcore.utils as utils
 import swarmcore.defaults as defaults
 
+
+# set up logging
+log = swarmcore.log.Log('swarm.log', swarmcore.log.Log.DEBUG)
 
 # program version
 MajorRelease = 0
@@ -41,7 +43,7 @@ VersionString = 'v%d.%d' % (MajorRelease, MinorRelease)
 
 Plugin = {
           'entry': 'stop',
-          'version': 'v%d.%d' % (MajorRelease, MinorRelease),
+          'version': '%s' % VersionString,
           'command': 'stop',
          }
 
@@ -74,7 +76,8 @@ def stop(args, kwargs):
     """
 
     # parse the command args
-    parser = argparse.ArgumentParser(description='This program is designed to stop a number of EC2 instances.')
+    parser = argparse.ArgumentParser(prog='swarm stop',
+                                     description='This program is designed to stop a number of EC2 instances.')
     parser.add_argument('-c', '--config', dest='config', action='store',
                         help='set the config from this file',
                         metavar='<configfile>')
@@ -86,8 +89,8 @@ def stop(args, kwargs):
     parser.add_argument('-s', '--state', dest='state', action='store',
                         help='the state of the instances to be stopped',
                         metavar='<state>', default=defaults.State)
-    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
-                        help='make execution verbose', default=False)
+    parser.add_argument('-v', '--verbose', dest='verbose', action='count',
+                        default=0, help='make execution verbose')
     parser.add_argument('-V', '--version', action='version', version=VersionString,
                         help='print the version and stop')
     parser.add_argument('-w', '--wait', dest='wait', action='store_true',
@@ -103,6 +106,11 @@ def stop(args, kwargs):
     if args.config:
         config_values = utils.load_config(args.config)
 
+    # increase verbosity if required
+    for _ in range(args.verbose):
+        log.bump_level()
+        verbose = True
+
     # set variables to possibly modified defaults
     prefix = config_values.get('args.prefix', args.prefix)
     quiet = args.quiet
@@ -111,11 +119,10 @@ def stop(args, kwargs):
     wait = args.wait
     yes = args.yes
 
-    if verbose:
-        log.debug('sw_stop: prefix=%s' % str(prefix))
-        log.debug('sw_stop: state=%s' % str(state))
-        log.debug('sw_stop: wait=%s' % str(wait))
-        log.debug('sw_stop: yes=%s' % str(yes))
+    log.debug('sw_stop: prefix=%s' % str(prefix))
+    log.debug('sw_stop: state=%s' % str(state))
+    log.debug('sw_stop: wait=%s' % str(wait))
+    log.debug('sw_stop: yes=%s' % str(yes))
 
     # check if enough information supplied
     if prefix is None and state is None:
@@ -125,8 +132,7 @@ def stop(args, kwargs):
     # get all instances
     swm = swarmcore.Swarm(verbose=verbose)
     all_instances = swm.instances()
-    if verbose:
-        log('instances=%s' % str(all_instances))
+    log('instances=%s' % str(all_instances))
 
     # get a filtered list of instances depending on prefix, state, etc
     prefix_str = '*'        # assume user wants to stop ALL instances
@@ -139,9 +145,8 @@ def stop(args, kwargs):
             f = swm.filter_name_prefix(prefix)
             s = swm.filter(all_instances, f)
             filtered_instances = swm.union(filtered_instances, s)
-    if verbose:
-        log('prefix=%s, prefix_str=%s' % (str(prefix), prefix_str))
-        log('filtered_instances=%s' % str(filtered_instances))
+    log('prefix=%s, prefix_str=%s' % (str(prefix), prefix_str))
+    log('filtered_instances=%s' % str(filtered_instances))
 
     state_str = '*'         # assume user wants to stop all states of instances
     state_instances = filtered_instances
@@ -154,9 +159,8 @@ def stop(args, kwargs):
             s = swm.filter(filtered_instances, f)
             state_instances = swm.union(state_instances, s)
     filtered_instances = state_instances
-    if verbose:
-        log('state=%s, state_str=%s' % (str(state), state_str))
-        log('filtered_instances=%s' % str(filtered_instances))
+    log('state=%s, state_str=%s' % (str(state), state_str))
+    log('filtered_instances=%s' % str(filtered_instances))
 
     if not quiet:
         print("Stopping %d instances named '%s', state='%s'"
@@ -191,9 +195,8 @@ def stop(args, kwargs):
     if not quiet:
         print('Stopped %d instances.' % len(filtered_instances))
 
-    if verbose:
-        log.debug('==============================================================')
-        log.debug('=========================  FINISHED  =========================')
-        log.debug('==============================================================')
+    log.debug('==============================================================')
+    log.debug('=========================  FINISHED  =========================')
+    log.debug('==============================================================')
 
     return 0

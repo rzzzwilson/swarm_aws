@@ -9,9 +9,11 @@ Usage: swarm copy <options> <src> <dst>
 where <options> is zero or more of:
     -a   --auth     directory holding authentication keys (default is ~/.ssh)
     -h   --help     print this help and stop
+    -i   --ip       show public IP instead of instance name
     -p   --prefix   name prefix used to select nodes (default is all servers)
+    -q   --quiet    be quiet for scripting
+    -v   --verbose  make logging more verbose (cumulative)
     -V   --version  print version information and stop
-    -v   --verbose  be verbose (cumulative)
 and <src> is the source file, <dst> is the remote destination.  Note
 that the <dst> must be valid as an scp destination.
 
@@ -22,19 +24,24 @@ To copy a file to every instance with  prefix of 'test_', do:
 
 import os
 import sys
-import getopt
+import argparse
 import swarmcore
-from swarmcore import log
-log = log.Log('swarm.log', log.Log.DEBUG)
+import swarmcore.log
+import swarmcore.utils as utils
+import swarmcore.defaults as defaults
 
+
+# set up logging
+log = swarmcore.log.Log('swarm.log', swarmcore.log.Log.DEBUG)
 
 # program version
 MajorRelease = 0
 MinorRelease = 1
+VersionString = 'v%d.%d' % (MajorRelease, MinorRelease)
 
 Plugin = {
           'entry': 'copy',
-          'version': 'v%d.%d' % (MajorRelease, MinorRelease),
+          'version': '%s' % VersionString,
           'command': 'copy',
          }
 
@@ -80,65 +87,66 @@ def copy(args, kwargs):
     kwargs  a dict of default values
     """
 
-    # parse the command params
-    try:
-        (opts, args) = getopt.getopt(args, 'a:hip:qVv',
-                                     ['auth=', 'help', 'ip', 'prefix=',
-                                      'quiet', 'version', 'verbose'])
-    except getopt.error, msg:
-        usage()
-        return 1
+    # parse the command args
+    parser = argparse.ArgumentParser(prog='swarm copy',
+                                     description='This plugin is used to copy a file to many instances.')
+    parser.add_argument('-a', '--auth', dest='auth_dir', action='store',
+                        help='set the directory holding authentication files',
+                        metavar='<auth>')
+    parser.add_argument('-i', '--ip', dest='show_ip', action='store_true',
+                        help='show public IP instead of instance name',
+                        default=False)
+    parser.add_argument('-p', '--prefix', dest='prefix', action='store',
+                        help='set the prefix for the new instance name',
+                        metavar='<prefix>')
+    parser.add_argument('-q', '--quiet', dest='quiet', action='store_true',
+                        help='be quiet for scripting', default=False)
+    parser.add_argument('-s', '--state', dest='state', action='store',
+                        help='the state of the instances to be stopped',
+                        metavar='<state>', default=defaults.State)
+    parser.add_argument('-v', '--verbose', dest='verbose', action='count',
+                        default=0, help='make logging more verbose (cumulative)')
+    parser.add_argument('-V', '--version', action='version',
+                        version=VersionString, help='print the version and stop')
+    parser.add_argument('source', action='store', help='the file to be copied')
+    parser.add_argument('destination', action='store',
+                        help='path to file destination')
 
+    args = parser.parse_args()
+
+    # set variables to possibly modified defaults
+    auth_dir = args.auth_dir
+    show_ip = args.show_ip
+    prefix = args.prefix
+    quiet = args.quiet
+    source = args.source
+    destination = args.destination
+
+    # increase verbosity if required
     verbose = False
-    for (opt, param) in opts:
-        if opt in ['-v', '--verbose']:
-            log.bump_level()
-            verbose = True
+    for _ in range(args.verbose):
+        log.bump_level()
+        verbose = True
 
-    # now parse the options
-    auth_dir = DefaultAuthDir
-    show_ip = False
-    name_prefix = None
-    quiet = False
-    for (opt, param) in opts:
-        if opt in ['-a', '--auth']:
-            auth_dir = param
-            if not os.path.isdir(auth_dir):
-                error("Authentication directory '%s' doesn't exist"
-                      % auth_dir)
-        elif opt in ['-h', '--help']:
-            usage()
-            return 0
-        elif opt in ['-i', '--ip']:
-            show_ip = True
-        elif opt in ['-p', '--prefix']:
-            name_prefix = param
-        elif opt in ['-q', '--quiet']:
-            quiet = True
-        elif opt in ['-V', '--version']:
-            print('%s %s' % (__program__, __version__))
-            return 0
-        elif opt in ['-v', '--verbose']:
-            pass        # done above
+    # check the auth directory exists
+    if auth_dir is None:
+        error('Sorry, you must specify the authentication directory')
+    if not os.path.isdir(auth_dir):
+        error("Authentication directory '%s' doesn't exist"
+              % auth_dir)
 
-    # get 'src ' and 'dst' params
-    if len(args) != 2:
-        usage()
-        return 1
-
-    (src, dst) = args
-    log.debug('copy: auth_dir=%s, show_ip=%s, name_prefix=%s'
-              % (auth_dir, str(show_ip), str(name_prefix)))
+    log.debug('copy: auth_dir=%s, show_ip=%s, prefix=%s, source=%s, destination=%s'
+              % (auth_dir, str(show_ip), str(prefix), source, destination))
 
     # get all instances
     swm = swarmcore.Swarm(verbose=verbose)
     all_instances = swm.instances()
 
-    # get a filtered list of instances depending on name_prefix
+    # get a filtered list of instances depending on prefix
     prefixes = []
     filtered_instances = all_instances
-    if name_prefix is not None:
-        prefixes = name_prefix.split(',')
+    if prefix is not None:
+        prefixes = prefix.split(',')
         filtered_instances = []
         for prefix in prefixes:
             filter = swm.filter_name_prefix(prefix)
@@ -150,7 +158,7 @@ def copy(args, kwargs):
               % (len(filtered_instances), '*|'.join(prefixes)))
 
     # kick off the parallel copy
-    answer = swm.copy(filtered_instances, src, dst, swm.info_ip())
+    answer = swm.copy(filtered_instances, source, destination, swm.info_ip())
 
     # sort by IP
     answer = sorted(answer, key=ip_key)

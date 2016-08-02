@@ -27,12 +27,13 @@ import os
 import sys
 import argparse
 import swarmcore
-from swarmcore import log
+import swarmcore.log
 import swarmcore.utils as utils
 import swarmcore.defaults as defaults
 
-log = log.Log('swarm.log', log.Log.DEBUG)
 
+# set up logging
+log = swarmcore.log.Log('swarm.log', swarmcore.log.Log.DEBUG)
 
 # program version
 MajorRelease = 0
@@ -85,7 +86,8 @@ def command(args, kwargs):
         return key[1]
 
     # parse the command args
-    parser = argparse.ArgumentParser(description='This program runs a command on the specified EC2 instances.')
+    parser = argparse.ArgumentParser(prog='swarm cmd',
+                                     description='This program runs a command on the specified EC2 instances.')
     parser.add_argument('-a', '--auth', dest='auth', action='store',
                         help='set the path to the authentication directory',
                         metavar='<auth>', default=defaults.AuthPath)
@@ -109,8 +111,8 @@ def command(args, kwargs):
     parser.add_argument('-s', '--secgroup', dest='secgroup', action='store',
                         help='set the security group to use',
                         metavar='<secgroup>', default=defaults.Secgroup)
-    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
-                        help='make execution verbose', default=False)
+    parser.add_argument('-v', '--verbose', dest='verbose', action='count',
+                        default=0, help='make execution more verbose (cumulative)')
     parser.add_argument('-V', '--version', action='version', version=VersionString,
                         help='print the version and stop')
     parser.add_argument('-z', '--zone', dest='zone', action='store',
@@ -126,6 +128,12 @@ def command(args, kwargs):
     if args.config:
         config_values = utils.load_config(args.config)
 
+    # increase verbosity if required
+    verbose = False
+    for _ in range(args.verbose):
+        log.bump_level()
+        verbose = True
+
     # set variables to possibly modified defaults
     auth = config_values.get('auth', args.auth)
     key = config_values.get('args.key', args.key)
@@ -134,7 +142,6 @@ def command(args, kwargs):
     region = config_values.get('region', args.region)
     secgroup = config_values.get('secgroup', args.secgroup)
     show_ip = config_values.get('show_ip', args.show_ip)
-    verbose = args.verbose
     zone = config_values.get('zone', args.zone)
 
     # gather all parameters and make a command string

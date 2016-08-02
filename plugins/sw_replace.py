@@ -16,6 +16,7 @@ where <options> is zero or more of:
     -k  <keyname>   set key to use
     -p  <prefix>    set the name prefix
     -q              be quiet for scripting
+    -r  <region>    set the region to use
     -s  <secgroup>  set the security group(s) (can be: 'xyzzy,default')
     -u  <userdata>  path to a userdata script file
     -v              become verbose (cumulative)
@@ -34,25 +35,28 @@ import os
 import sys
 import shutil
 import time
-import getopt
+import argparse
 import commands
 import tempfile
 import traceback
 
 import swarmcore
-from swarmcore import log
+import swarmcore.log
 import swarmcore.utils as utils
+import swarmcore.defaults as defaults
 
-log = log.Log('swarm.log', log.Log.DEBUG)
 
+# set up logging
+log = swarmcore.log.Log('swarm.log', swarmcore.log.Log.DEBUG)
 
 # program version
 MajorRelease = 0
 MinorRelease = 1
+VersionString = 'v%d.%d' % (MajorRelease, MinorRelease)
 
 Plugin = {
           'entry': 'replace',
-          'version': 'v%d.%d' % (MajorRelease, MinorRelease),
+          'version': '%s' % VersionString,
           'command': 'replace',
          }
 
@@ -81,6 +85,7 @@ Config2Global = {'image': 'DefaultImage',
                  'nameprefix': 'DefaultNamePrefix',
                  'prefix': 'DefaultNamePrefix',
                  'name': 'DefaultNamePrefix',
+                 'region': 'DefaultRegion',
                  'secgroup': 'DefaultSecgroup',
                  'security': 'DefaultSecgroup',
                  'securitygroup': 'DefaultSecgroup',
@@ -173,111 +178,117 @@ def replace(args, kwargs):
         auth      path to auth directory
     """
 
-    # parse the command args
-    try:
-        (opts, args) = getopt.getopt(args, 'a:c:f:hi:k:p:qr:s:u:vVy',
-                                     ['auth=', 'config=', 'flavour=', 'help',
-                                      'image=', 'key=', 'prefix=', 'quiet',
-                                      'region=', 'secgroup=', 'userdata=',
-                                      'verbose', 'version', 'yes', ])
-    except getopt.error, e:
-        usage(str(e.msg))
-        return 1
+#    -a  <auth>      set path to key directory (default ~/.ssh)
+#    -c  <config>    set the config file to use
+#    -f  <flavour>   set the image flavour
+#    -h              print this help and stop
+#    -i  <image>     sets image to use
+#    -k  <keyname>   set key to use
+#    -p  <prefix>    set the name prefix
+#    -q              be quiet for scripting
+#    -s  <secgroup>  set the security group(s) (can be: 'xyzzy,default')
+#    -u  <userdata>  path to a userdata script file
+#    -v              become verbose (cumulative)
+#    -V              print version and stop
+#    -y              answer 'y' to replace? question
+#and <name> is the sick instance AWS dashboard name.
 
-    # do -c and -v now
-    config = None
-    Verbose = False
-    for (opt, param) in opts:
-        if opt in ['-c', '--config']:
-            config = param
-        if opt in ['-v', '--verbose']:
-            Verbose = True
-            log.bump_level()
+    # parse the command args
+    parser = argparse.ArgumentParser(prog='swarm replace',
+                                     description='This program is designed to start a number of new EC2 instances.')
+    parser.add_argument('-a', '--auth', dest='auth', action='store',
+                        help='set the path to the authentication directory',
+                        metavar='<auth>', default=defaults.AuthPath)
+    parser.add_argument('-c', '--config', dest='config', action='store',
+                        help='set the config from this file',
+                        metavar='<configfile>')
+    parser.add_argument('-f', '--flavour', dest='flavour', action='store',
+                        help='set the new instance flavour',
+                        metavar='<flavour>', default=defaults.Flavour)
+    parser.add_argument('-i', '--image', dest='image', action='store',
+                        help='set the image for the new instance',
+                        metavar='<image>', default=defaults.Image)
+    parser.add_argument('-k', '--key', dest='key', action='store',
+                        help='set the key file for the new instance',
+                        metavar='<key>', default=defaults.Key)
+    parser.add_argument('-p', '--prefix', dest='prefix', action='store',
+                        help='set the prefix for the new instance name',
+                        metavar='<prefix>')
+    parser.add_argument('-q', '--quiet', dest='quiet', action='store_true',
+                        help='be quiet for scripting', default=False)
+    parser.add_argument('-r', '--region', dest='region', action='store',
+                        help='set the region for the new instance name',
+                        metavar='<region>', default=defaults.Region)
+    parser.add_argument('-s', '--secgroup', dest='secgroup', action='store',
+                        help='set the security group for the new instance',
+                        metavar='<secgroup>', default=defaults.Secgroup)
+    parser.add_argument('-u', '--userdata', dest='userdata', action='store',
+                        help='set the userdata file for the new instance',
+                        metavar='<userdata>')
+    parser.add_argument('-v', '--verbose', dest='verbose', action='count',
+                        default=0, help='make logging more verbose')
+    parser.add_argument('-V', '--version', action='version', version=VersionString,
+                        help='print the version and stop')
+    parser.add_argument('-z', '--zone', dest='zone', action='store',
+                        help='set the zone for the new instance',
+                        metavar='<zone>', default=defaults.Zone)
+    parser.add_argument('instances', action='store', nargs='*',
+                        help='optional instance names to replace')
+
+    args = parser.parse_args()
 
     # read config file, if we have one
-    # this may update the variables just set from defaults
-    if config:
-        load_config(config)
+    # set global values from the config file
+    config_values = {}
+    if args.config:
+        config_values = utils.load_config(args.config)
+
+    # increase verbosity if required
+    verbose = False
+    for _ in range(args.verbose):
+        log.bump_level()
+        verbose = True
 
     # set variables to possibly modified defaults
-    auth = None
-    flavour = None
-    image = None
-    key = None
-    prefix = None
-    quiet = False
-    region = None
-    secgroup = None
-    userdata = None
-    y_opt = False
+    auth = config_values.get('auth', None)
+    flavour = config_values.get('flavour', args.flavour)
+    image = config_values.get('image', args.image)
+    key = config_values.get('args.key', args.key)
+    prefix = config_values.get('args.prefix', args.prefix)
+    quiet = args.quiet
+    region = config_values.get('region', args.region)
+    secgroup = config_values.get('secgroup', args.secgroup)
+    userdata = config_values.get('userdata', args.userdata)
+    zone = config_values.get('zone', args.zone)
+    instances = args.instances
 
-    # now parse the options
-    # this is the users final chance to change default values
-    for (opt, param) in opts:
-        if opt in ['-a', '--auth']:
-            auth = param
-        elif opt in ['-c', '--config']:
-            # done above
-            pass
-        elif opt in ['-f', '--flavour']:
-            flavour = param
-        elif opt in ['-h', '--help']:
-            usage()
-            return 0
-        elif opt in ['-i', '--image']:
-            image = param
-        elif opt in ['-k', '--key']:
-            key = param
-        elif opt in ['-p', '--prefix']:
-            prefix = param
-        elif opt in ['-q', '--quiet']:
-            quiet = True
-        elif opt in ['-r', '--region']:
-            region = param
-        elif opt in ['-s', '--secgroup']:
-            secgroup = param
-        elif opt in ['-u', '--userdata']:
-            userdata = param
-        elif opt in ['-V', '--version']:
-            print('%s %s' % (Plugin['command'], Plugin['version']))
-            return 0
-        elif opt in ['-v', '--verbose']:
-            # done above
-            pass
-        elif opt in ['-y', '--yes']:
-            y_opt = True
-
-    instances = args
-    if len(args) == 0:
-        if prefix is None:
-            usage('You must supply name(s) of the instances to replace.')
-            return 1
-
-    log.debug('param: instances=%s' % str(instances))
-    log.debug('param: prefix=%s' % str(prefix))
-    log.debug('param: image=%s' % str(image))
-    log.debug('param: flavour=%s' % str(flavour))
-    log.debug('param: key=%s' % str(key))
-    log.debug('param: secgroup=%s' % str(secgroup))
-    log.debug('param: userdata=%s' % str(userdata))
-    log.debug('param: auth=%s' % str(auth))
-
-#    if not quiet:
-#        print('Replacing instance(s) %s' % str(instances))
+    log.debug('auth=%s' % str(auth))
+    log.debug('flavour=%s' % str(flavour))
+    log.debug('image=%s' % str(image))
+    log.debug('key=%s' % str(key))
+    log.debug('prefix=%s' % str(prefix))
+    log.debug('region=%s' % str(region))
+    log.debug('secgroup=%s' % str(secgroup))
+    log.debug('userdata=%s' % str(userdata))
+    log.debug('zone=%s' % str(zone))
+    log.debug('instances=%s' % str(instances))
 
     # connect to AWS
-    s = swarmcore.Swarm(auth_dir=auth, verbose=Verbose)
+    s = swarmcore.Swarm(auth_dir=auth, verbose=verbose)
     all_instances = s.instances()
 
     # get list of instances satisfying 'prefix' option
-    replace_instances = all_instances
+    replace_instances = all_instances   # assume we want all instances
     if prefix:
+        # otherwise look for name prefix
         replace_instances = []
         for instance in all_instances:
             instance_name = utils.get_instance_name(instance)
-
             if instance_name.startswith(prefix):
                 replace_instances.append(instance)
+    log.debug('Replacing instance(s) %s' % str(replace_instances))
+    if not quiet:
+        print('Replacing instance(s) %s' % str(replace_instances))
 
     # now check if given instance names and find these in 'replace_instances'
     if instances:
@@ -295,9 +306,10 @@ def replace(args, kwargs):
         elif prefix:
             msg = ("Sorry, didn't find any instances of '%s*'" % name)
         elif instances:
-            msg = ("Sorry, didn't find any instances with names in '%s'" % str(instances))
+            msg = ("Sorry, didn't find any instances with names in '%s'"
+                   % str(instances))
         else:
-            msg = "You must specify either the '-p' option, one or more names or both"
+            msg = "You must specify either the '-p' option or one or more names or both"
         log(msg)
         print(msg)
         sys.exit(10)
@@ -379,7 +391,7 @@ def replace(args, kwargs):
     if not quiet:
         print(msg)
 
-    if Verbose:
+    if verbose:
         log.debug('==============================================================')
         log.debug('=========================  FINISHED  =========================')
         log.debug('==============================================================')
