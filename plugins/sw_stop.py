@@ -27,6 +27,7 @@ As an example, the following will stop all instances whose name starts with
 import os
 import sys
 import argparse
+
 import swarmcore
 import swarmcore.log
 import swarmcore.utils as utils

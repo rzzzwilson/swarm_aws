@@ -25,6 +25,7 @@ To copy a file to every instance with  prefix of 'test_', do:
 import os
 import sys
 import argparse
+
 import swarmcore
 import swarmcore.log
 import swarmcore.utils as utils
