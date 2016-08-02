@@ -190,9 +190,14 @@ class Log(object):
         self.level = level
         self('Set logging level to %d' % level, Log.CRITICAL)
 
-    def bump_level(self):
+    def bump_level(self, bump=10):
+        """Increase the logging level.
+
+        bump  the amount to increase logging level by (default 10)
+        """
+
         if self.level > Log.DEBUG:
-            self.level -= 10
+            self.level -= bump
         if self.level < Log.DEBUG:
             self.level = Log.DEBUG
         self('Set logging level to %s' % self.level2string(), Log.CRITICAL)
