@@ -58,11 +58,10 @@ def usage(msg=None):
         print('*'*60)
     print(__doc__)        # module docstring used
 
-def command(args, kwargs):
+def command(args):
     """Perform the command on required instances..
 
     args    list of arg values
-    kwargs  a dict of default values
     """
 
     def ip_key(key):
@@ -121,7 +120,7 @@ def command(args, kwargs):
                         metavar='<zone>', default=defaults.Zone)
     parser.add_argument('command', metavar='<command>', action='store',
                         type=str, help='the command to run on each instance')
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     # read config file, if we have one
     # set global values from the config file

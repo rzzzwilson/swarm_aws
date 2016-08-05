@@ -71,11 +71,10 @@ def usage(msg=None):
         print('*'*60)
     print(__doc__)        # module docstring used
 
-def wait(args, kwargs):
+def wait(args):
     """Wait for the specified state on the given instances.
 
     args    list of arg values
-    kwargs  a dict of default values
     """
 
     # parse the command args
@@ -95,7 +94,7 @@ def wait(args, kwargs):
                         version=VersionString, help='print the version and stop')
     parser.add_argument('state', action='store', help='the state to wait for')
 
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     # set variables
     show_ip = args.show_ip

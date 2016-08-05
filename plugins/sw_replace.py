@@ -163,35 +163,11 @@ def load_config(config_file):
 
     globals().update(updated_globals)
 
-def replace(args, kwargs):
+def replace(args):
     """Replace an existing cloud instance.
 
     args    list of arg values to be parsed
-    kwargs  a dict of default values
-
-    Values potentially parsed from 'args' or found in 'kwargs':
-        image     image for instance
-        flavour   flavour of instance
-        key       key for instance
-        secgroup  security group(s)
-        userdata  instance startup script path
-        auth      path to auth directory
     """
-
-#    -a  <auth>      set path to key directory (default ~/.ssh)
-#    -c  <config>    set the config file to use
-#    -f  <flavour>   set the image flavour
-#    -h              print this help and stop
-#    -i  <image>     sets image to use
-#    -k  <keyname>   set key to use
-#    -p  <prefix>    set the name prefix
-#    -q              be quiet for scripting
-#    -s  <secgroup>  set the security group(s) (can be: 'xyzzy,default')
-#    -u  <userdata>  path to a userdata script file
-#    -v              become verbose (cumulative)
-#    -V              print version and stop
-#    -y              answer 'y' to replace? question
-#and <name> is the sick instance AWS dashboard name.
 
     # parse the command args
     parser = argparse.ArgumentParser(prog='swarm replace',
@@ -235,7 +211,7 @@ def replace(args, kwargs):
     parser.add_argument('instances', action='store', nargs='*',
                         help='optional instance names to replace')
 
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     # read config file, if we have one
     # set global values from the config file

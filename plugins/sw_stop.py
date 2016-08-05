@@ -58,22 +58,10 @@ def usage(msg=None):
         print('*'*60)
     print(__doc__)        # module docstring used
 
-def stop(args, kwargs):
+def stop(args):
     """Stop a set of instances.
 
     args    list of arg values to be parsed
-    kwargs  a dict of default values
-
-    Values potentially parsed from 'args' or found in 'kwargs':
-        num       number of instance to start
-        name      instance name prefix
-        image     image for instance
-        flavour   flavour of instance
-        key       key for instance
-        secgroup  security group(s)
-        state     state of selected instances
-        userdata  instance startup script path
-        auth      path to auth directory
     """
 
     # parse the command args
@@ -99,7 +87,7 @@ def stop(args, kwargs):
     parser.add_argument('-y', '--yes', dest='yes', action='store_true',
                         help="don't prompt before stopping", default=False)
 
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     # read config file, if we have one
     # set global values from the config file

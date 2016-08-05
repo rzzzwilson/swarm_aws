@@ -81,11 +81,10 @@ def ip_key(key):
 
     return result
 
-def copy(args, kwargs):
+def copy(args):
     """Perform the copy on required instances.
 
     args    list of arg values
-    kwargs  a dict of default values
     """
 
     # parse the command args
@@ -113,7 +112,7 @@ def copy(args, kwargs):
     parser.add_argument('destination', action='store',
                         help='path to file destination')
 
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     # set variables to possibly modified defaults
     auth_dir = args.auth_dir

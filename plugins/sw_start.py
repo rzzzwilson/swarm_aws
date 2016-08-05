@@ -68,26 +68,15 @@ def usage(msg=None):
         print('*'*60)
     print(__doc__)        # module docstring used
 
-def start(args, kwargs):
+def start(args):
     """Start a number of new cloud Instances.
 
     args    list of arg values to be parsed
-    kwargs  a dict of default values
-
-    Values potentially parsed from 'args' or found in 'kwargs':
-        num       number of instance to start
-        name      instance name prefix
-        image     image for instance
-        flavour   flavour of instance
-        key       key for instance
-        secgroup  security group(s)
-        userdata  instance startup script path
-        auth      path to auth directory
     """
 
     # parse the command args
     parser = argparse.ArgumentParser(prog='swarm start',
-                                     description='This program is designed to start a number of new EC2 instances.')
+                                     description='This plugin starts a number of new EC2 instances.')
     parser.add_argument('-a', '--auth', dest='auth', action='store',
                         help='set the path to the authentication directory',
                         metavar='<auth>', default=defaults.AuthPath)
@@ -124,10 +113,10 @@ def start(args, kwargs):
     parser.add_argument('-z', '--zone', dest='zone', action='store',
                         help='set the zone for the new instance',
                         metavar='<zone>', default=defaults.Zone)
-    parser.add_argument('number', metavar='N', action='store', type=int,
+    parser.add_argument('number', metavar='<number>', action='store', type=int,
                         help='the number of instances to start')
 
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     # read config file, if we have one
     # set global values from the config file
