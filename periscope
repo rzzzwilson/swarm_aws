@@ -39,8 +39,8 @@ function usage
 # function called when user does CONTROL-C
 function ctrl_c()
 {
-    echo -n "periscope is shutting down ... "
-    # kill periscope server
+    echo -ne "\nperiscope is shutting down ... "
+    # kill periscope server(s)
     swarm stop -p "$VPN_NAME" -q -y
     echo "done"
 }
@@ -52,7 +52,6 @@ function wait_sshuttle()
         sleep 1
         if ps -ef | grep sshuttle >/dev/null; then
             sleep 1
-            echo "Before, IP=$BEFORE_IP"
             AFTER_IP=$BEFORE_IP
             while [ "$BEFORE_IP" == "$AFTER_IP" ]; do
                 AFTER_IP=$(wget -qO- http://ipecho.net/plain)
@@ -61,12 +60,27 @@ function wait_sshuttle()
                 fi
                 sleep 1
             done
-            echo " After, IP=$AFTER_IP"
+            echo -e "\nBefore: IP=$BEFORE_IP"
+            echo " After: IP=$AFTER_IP"
+            echo "Region: $REGION $REGION_DISPLAY"
             echo ""
-            echo "periscope running, do ^C in this window to terminate"
+            echo -n "periscope running, do ^C here to terminate"
             return
         fi
     done
+}
+
+# get display name from region name
+function get_region_name()
+{
+    RESULT="(unknown, please fix 'region_db')"
+
+    LINE=$(grep "^$1" region_db | sed -e "s/^.*://")
+    if [ ! -z "$LINE" ]; then
+        RESULT="($LINE)"
+    fi
+
+    echo $RESULT
 }
 
 # handle user doing ^C
@@ -98,6 +112,10 @@ swarm wait -p "$VPN_NAME" $Q_OPT terminated
 BEFORE_IP=$(wget -qO- http://ipecho.net/plain)
 #echo "Before, IP=$BEFORE_IP"
 
+# get region we are going to use
+REGION=$(grep "^region" instance_config | sed -e "s/^.*=//" | tr -d " ='")
+REGION_DISPLAY=$(get_region_name $REGION)
+
 # start a t.micro instance, wait until it can accept SSH connections
 swarm start -c instance_config -p "$VPN_NAME" $Q_OPT 1
 swarm wait -p "$VPN_NAME" $Q_OPT ssh
@@ -108,6 +126,11 @@ HOST_NAME=$(echo "$HOST_NAME" | sed -e "s/^.*|//")
 
 # since sshuttle blocks, we need to start a thread to get AFTER IP
 (wait_sshuttle)&
+sleep 1
 
 # now start the local part of the connection - we hang here until ^C
 sshuttle -r ec2-user@$HOST_NAME --dns 0.0.0.0/0 >/dev/null 2>&1
+
+# display the IP again after we are finished
+FINAL_IP=$(wget -qO- http://ipecho.net/plain)
+echo -e "\n Final: IP=$FINAL_IP\n"
