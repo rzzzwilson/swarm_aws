@@ -117,7 +117,7 @@ class Swarm(object):
         # not that it matters much in a GC language
 
         # get a client object
-        self.client = boto3.client('ec2')
+        self.client = boto3.client('ec2', region_name=region_name)
 
         # get absolute path to user ~/.ssh directory
         self.ssh_dir = os.path.expanduser('~/.ssh')
