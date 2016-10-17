@@ -104,6 +104,8 @@ while getopts :hv OPT; do
     esac
 done
 
+echo "Starting periscope ..."
+
 # kill off any existing instance(s)
 swarm stop -p "$VPN_NAME" $Q_OPT -y
 swarm wait -p "$VPN_NAME" $Q_OPT terminated
