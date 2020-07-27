@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
 """
 Code to manage a swarm of instances.
@@ -8,7 +7,7 @@ Code to manage a swarm of instances.
 # program version
 __program__ = 'Swarm'
 _MajorRelease = 0
-_MinorRelease = 1
+_MinorRelease = 2
 __version__ = '%d.%d' % (_MajorRelease, _MinorRelease)
 
 

@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 This program is used to stop a set of instances.
 In AWS-speak, set required instances to the 'terminated' state.

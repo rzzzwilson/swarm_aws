@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 This program is designed to replace an ailing instance or instances, gathering
 as much required information from the sick instance as possible.

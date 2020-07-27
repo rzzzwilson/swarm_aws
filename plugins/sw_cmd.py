@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 This plugin is a generalization of lots of little scripts that get written
 to do something on every worker node, like check the contents of a certain

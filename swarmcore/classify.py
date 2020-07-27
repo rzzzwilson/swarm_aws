@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 A set of classifier functions that take a VM console log
 and try to classify the VM state.

@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 This program is used to check the health of VMs.  Things like:
  . can we SSH to the VM?

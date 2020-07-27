@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
 This plugin waits for the given state on the specified instances.  The
 states we can wait for are:
